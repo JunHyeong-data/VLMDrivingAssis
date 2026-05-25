@@ -1,0 +1,51 @@
+# ─── Python ─────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ─── Virtual environments ───────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ─── Distribution / packaging ───────────────────────────
+build/
+dist/
+*.egg-info/
+*.egg
+
+# ─── Test / coverage ────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ─── IDE / editor ───────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ─── OS noise ───────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Claude Code local config (preview MCP launch settings) ─
+.claude/
+
+# ─── App secrets / runtime junk ─────────────────────────
+.env
+.env.local
+*.log
+
+# ─── Project-specific tmp artifacts (defense in depth — these
+#     normally live in tempfile.gettempdir(), not the repo) ──
+dc_norm_*.mp4
+dc_event_*.jpg
+drivecoach_out_*.mp4
+_design_preview.html

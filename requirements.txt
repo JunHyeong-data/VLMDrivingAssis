@@ -1,0 +1,5 @@
+gradio>=6.0
+opencv-python>=4.8
+numpy>=1.24
+pillow>=10.0
+imageio-ffmpeg>=0.4.9   # bundles ffmpeg.exe → H.264 transcode for browser playback
