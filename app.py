@@ -29,8 +29,6 @@ from core.scorer import calculate_score
 from core.video_utils import normalize_for_browser
 from core.vlm import generate_coaching
 
-from ui.coaching_panel import render_coaching
-from ui.score_panel import render_score
 from ui.screens import (
     analyzing_screen_html,
     idle_hero_html,
