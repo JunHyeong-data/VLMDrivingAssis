@@ -1,20 +1,38 @@
 """Object detection interface.
 
 REPLACEMENT POINT (이지원):
-  When YOLO26n / RT-DETR weights are ready, set USE_REAL_YOLO=1 and
-  implement `_detect_real_frame()` below. Everything downstream — event
-  extraction, VLM, scoring, UI — uses the FrameDetections schema, so no
-  other code needs to change.
+  Set USE_REAL_YOLO=1 to use trained weights.
+  YOLO_MODEL env var selects which model (default: yolo26n_best.pt).
 """
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Callable, Iterator
 
 import cv2
 
-from core.schema import FrameDetections
+from core.schema import Detection, FrameDetections, CLASS_NAMES
 from mock_data import mock_detect
+
+# ── Real YOLO model (lazy-loaded once) ──────────────────
+_model = None
+_WEIGHTS_DIR = Path(__file__).resolve().parent.parent / "weights"
+
+# Available models: yolo26n_best.pt, yolo26s_best.pt, rtdert_best.pt
+_DEFAULT_MODEL = "yolo26n_best.pt"
+
+
+def _load_model():
+    global _model
+    if _model is None:
+        from ultralytics import YOLO
+        model_name = os.environ.get("YOLO_MODEL", _DEFAULT_MODEL)
+        weight_path = _WEIGHTS_DIR / model_name
+        if not weight_path.exists():
+            raise FileNotFoundError(f"Weight file not found: {weight_path}")
+        _model = YOLO(str(weight_path))
+    return _model
 
 
 def detect_video(
@@ -22,16 +40,7 @@ def detect_video(
     sample_every: int = 1,
     progress: Callable[[float, str], None] | None = None,
 ) -> list[FrameDetections]:
-    """Run detection over every Nth frame.
-
-    Args:
-        video_path: path to input video
-        sample_every: process 1 of every N frames (1 = all frames)
-        progress: optional callback(fraction 0..1, status string)
-
-    Returns:
-        List of FrameDetections, in chronological order.
-    """
+    """Run detection over every Nth frame."""
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video: {video_path}")
@@ -64,7 +73,7 @@ def detect_video(
 
 
 def iter_video_frames(video_path: str) -> Iterator[tuple[int, float, "cv2.typing.MatLike"]]:
-    """Yield (frame_idx, timestamp, BGR frame) for every frame in the video."""
+    """Yield (frame_idx, timestamp, BGR frame) for every frame."""
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video: {video_path}")
@@ -79,13 +88,35 @@ def iter_video_frames(video_path: str) -> Iterator[tuple[int, float, "cv2.typing
     cap.release()
 
 
-def _detect_real_frame(frame, frame_idx: int, fps: float, width: int, height: int) -> FrameDetections:
-    """REPLACE ME — call YOLO26n / RT-DETR on `frame` (BGR numpy array).
+# ── Class name mapping (safety net) ─────────────────────
+_CLS_MAP = {
+    "bicycle": "bike",
+    "motorcycle": "motor",
+}
 
-    Expected return: FrameDetections with Detection entries.
-    Class names must match core.schema.CLASS_NAMES.
-    """
-    raise NotImplementedError(
-        "Real YOLO inference not wired up yet. Set USE_REAL_YOLO=0 to use mock data, "
-        "or implement core.detector._detect_real_frame()."
+
+def _detect_real_frame(frame, frame_idx: int, fps: float, width: int, height: int) -> FrameDetections:
+    """Run YOLO26n / YOLO26s / RT-DETR on a single BGR frame."""
+    model = _load_model()
+    results = model(frame, verbose=False)[0]
+
+    dets: list[Detection] = []
+    for box in results.boxes:
+        raw_name = results.names[int(box.cls)]
+        cls_name = _CLS_MAP.get(raw_name, raw_name)
+        if cls_name not in CLASS_NAMES:
+            continue
+        x1, y1, x2, y2 = box.xyxy[0].tolist()
+        dets.append(Detection(
+            cls=cls_name,
+            bbox=(int(x1), int(y1), int(x2), int(y2)),
+            confidence=float(box.conf),
+        ))
+
+    return FrameDetections(
+        frame_idx=frame_idx,
+        timestamp=frame_idx / fps,
+        width=width,
+        height=height,
+        detections=dets,
     )
