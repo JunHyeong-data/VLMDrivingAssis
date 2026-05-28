@@ -18,6 +18,8 @@ the hidden `gr.File` so Gradio still handles the actual upload.
 """
 from __future__ import annotations
 
+import re
+
 
 # ─── Shared bits ──────────────────────────────────────────────
 
@@ -939,31 +941,431 @@ def analyzing_screen_html(
 """
 
 
-# ─── RESULTS — v4 cinematic finale ────────────────────────────
-# Score becomes a sentence, key moments become evidence cards, annotated
-# video sits below as proof. All in one self-contained .dc-v3-root blob —
-# same pattern as Ready / Analyzing. The "또 다른 주행" custom button is
-# bridged by JS to a hidden gr.Button.
+# ─── RESULTS — v5 redesign ────────────────────────────────────
+# Soul: the coaching SENTENCE is the hero. The score is small and tucked
+# under the still. The annotated video is promoted to "Evidence" with a
+# clickable timeline. Cards adapt to 0/1/2/3/many. Breakdown shows prior
+# tick + delta chip + focus highlight. All in one self-contained .dc-v3-root.
 
-def _score_comment(score) -> str:
-    """One-line emotional comment shown next to the big score number.
-    Bracket thresholds chosen so the user feels rewarded above 80 and
-    challenged below 70 — the rough A/B/C/D bands of the existing scorer."""
+# Helpers that survive from v4 (still used elsewhere):
+#   _hero_sentence / _hero_with_history / _secondary_with_delta —
+#     reused to populate the .hero-prior block.
+#   _score_delta_html — superseded inline by _score_block_html below.
+#   _category_tier — used to color the breakdown bars.
+#   _count_by_category / _name_ko_to_key — used by _hero_with_history.
+
+
+def _pick_hero_event_idx(events) -> int | None:
+    """Pick the single event that becomes the hero's reference frame.
+    Priority: danger > caution > safe; tie-break by penalty desc."""
+    if not events:
+        return None
+    sev_order = {"danger": 3, "caution": 2, "safe": 1}
+    best_i, best_key = 0, (sev_order.get(events[0].severity, 0),
+                           events[0].penalty or 0)
+    for i, e in enumerate(events[1:], start=1):
+        k = (sev_order.get(e.severity, 0), e.penalty or 0)
+        if k > best_key:
+            best_i, best_key = i, k
+    return best_i
+
+
+def _sev_cls(severity: str) -> str:
+    return "risk" if severity == "danger" else (
+        "amber" if severity == "caution" else "safe"
+    )
+
+
+def _sev_label(severity: str) -> str:
+    return "RISK" if severity == "danger" else (
+        "CAUTION" if severity == "caution" else "SAFE"
+    )
+
+
+def _hero_quote_text(hero_event, hero_coaching) -> str:
+    """One-sentence coaching line for the hero. Prefers VLM action_plan,
+    falls back to a soft message when there's nothing to coach about."""
+    if hero_event and hero_coaching and (hero_coaching.action_plan or "").strip():
+        return hero_coaching.action_plan.strip()
+    if hero_event:
+        # event found but no coaching text — minimal fallback per severity
+        if hero_event.severity == "danger":
+            return "이 순간을 다시 보고, 다음엔 한 박자 먼저 반응해보세요."
+        if hero_event.severity == "caution":
+            return "이 패턴이 반복되지 않게 조금만 여유를 두세요."
+        return "이 톤을 다음 주행에도 그대로 가져가 보세요."
+    return "위험 없이, 부드럽게 흘러갔어요."
+
+
+def _hero_quote_html(text: str) -> str:
+    """Wrap each whitespace-separated token in a .word span with --i index
+    so CSS can stagger the per-word slideUp entrance animation."""
+    tokens = re.findall(r"\S+|\s+", text)
+    spans = "".join(
+        f'<span class="word" style="--i:{i}">{t}</span>'
+        for i, t in enumerate(tokens)
+    )
+    return f'<h1 class="hero-quote">{spans}</h1>'
+
+
+def _hero_ref_html(hero_event) -> str:
+    """The mono chip beneath the quote: timestamp · severity · short note."""
+    if hero_event is None:
+        return (
+            '<div class="hero-ref">'
+            '<span class="ref-tc">—</span>'
+            '<span class="ref-sev safe">SAFE · 위험 없음</span>'
+            '<span>0개 위험 이벤트</span>'
+            '</div>'
+        )
+    sev_cls = _sev_cls(hero_event.severity)
+    sev_label = _sev_label(hero_event.severity)
+    tc = _fmt_duration(hero_event.timestamp)
+    note = (hero_event.summary or "")
+    if len(note) > 36:
+        note = note[:36] + "…"
+    return f"""
+    <div class="hero-ref">
+      <span class="ref-tc">{tc}</span>
+      <span class="ref-sev {sev_cls}">{sev_label} · {hero_event.title}</span>
+      <span>{note}</span>
+    </div>
+    """
+
+
+def _hero_prior_block_html(score, events, prior) -> str:
+    """The italic-bordered block beneath hero-ref carrying the longitudinal
+    'we remember you' narrative. Hidden entirely when there is no prior."""
+    if prior is None:
+        return ""
+    hero, secondary = _hero_sentence(score, events, prior=prior)
+    return f"""
+    <div class="hero-prior">
+      <div class="prior-line">{hero}</div>
+      <div class="prior-sec">{secondary}</div>
+    </div>
+    """
+
+
+def _hero_still_html(still_path: str, hero_event) -> str:
+    """The 16:11 framed image of the decisive moment. Corner brackets + a
+    monospaced bottom-left tc/severity badge. We don't draw bboxes here —
+    the still itself is the evidence; bboxes belong on the annotated video."""
+    url = _video_url(still_path) if still_path else ""
+    if hero_event is None or not url:
+        # No event or no still — render an empty dark frame with brackets so
+        # the hero column doesn't visually collapse.
+        return (
+            '<div class="hero-still hero-still-empty">'
+            '<span class="br br-tl"></span><span class="br br-tr"></span>'
+            '<span class="br br-bl"></span><span class="br br-br"></span>'
+            '</div>'
+        )
+    sev_cls = _sev_cls(hero_event.severity)
+    label = "BRAKE" if hero_event.severity == "danger" else (
+        "CAUTION" if hero_event.severity == "caution" else "SAFE"
+    )
+    tc = _fmt_duration(hero_event.timestamp)
+    return f"""
+    <div class="hero-still">
+      <img alt="결정적 순간 프레임" src="{url}"/>
+      <span class="br br-tl"></span>
+      <span class="br br-tr"></span>
+      <span class="br br-bl"></span>
+      <span class="br br-br"></span>
+      <span class="hero-still-tc">
+        <span class="dot {sev_cls}"></span>{tc} · {label}
+      </span>
+    </div>
+    """
+
+
+def _score_block_html(score, prior) -> str:
+    """Score chip tucked under the hero still. Big number + grade + delta
+    vs prior. Smaller than the hero quote — score is supporting cast."""
     if not score:
         return ""
-    s = score.total
-    if s >= 90:
-        return "정말 안정적이었어요"
-    if s >= 80:
-        return "대체로 안정적이었지만 아쉬운 순간이 있었어요"
-    if s >= 70:
-        return "몇 가지 주의할 점이 발견되었어요"
-    return "개선이 필요한 구간이 많았어요"
+    if prior is None:
+        prior_label = "첫 분석 · "
+        delta_chip = '<span class="delta-chip first">비교 없음</span>'
+    else:
+        delta = score.total - prior.score.total
+        prior_label = f"지난번 {prior.score.total} · "
+        if delta > 0:
+            delta_chip = f'<span class="delta-chip">▲ {delta}</span>'
+        elif delta < 0:
+            delta_chip = f'<span class="delta-chip down">▼ {-delta}</span>'
+        else:
+            delta_chip = '<span class="delta-chip">— 0</span>'
+    return f"""
+    <div class="score-block">
+      <div class="score-num">{score.total}<span class="unit">/100</span></div>
+      <div class="score-meta">
+        <div class="row">
+          <span>이번 주행</span>
+          <span class="grade">{score.grade}</span>
+        </div>
+        <div class="row">
+          <span>{prior_label}</span>
+          {delta_chip}
+        </div>
+      </div>
+    </div>
+    """
+
+
+def _timeline_html_v5(events, duration_s: float) -> str:
+    """Track with ±1s severity bands + clickable markers + readable labels.
+    The data-tc on markers/labels is read by DC_BOOT_JS to seek the video."""
+    if duration_s <= 0:
+        return ""
+    bands, markers, labels = [], [], []
+    for e in events:
+        sev_cls = _sev_cls(e.severity)
+        start = max(0.0, e.timestamp - 1)
+        end = min(duration_s, e.timestamp + 1)
+        left = 100 * start / duration_s
+        width = 100 * (end - start) / duration_s
+        bands.append(
+            f'<span class="band {sev_cls}" '
+            f'style="left:{left:.2f}%; width:{width:.2f}%"></span>'
+        )
+        mleft = 100 * e.timestamp / duration_s
+        title = f"{_fmt_duration(e.timestamp)} · {e.title}"
+        markers.append(
+            f'<span class="marker {sev_cls}" '
+            f'style="left:{mleft:.2f}%" '
+            f'data-tc="{e.timestamp:.2f}" title="{title}"></span>'
+        )
+        labels.append(
+            f'<button type="button" data-tc="{e.timestamp:.2f}">'
+            f'<span class="dot {sev_cls}"></span>'
+            f'{_fmt_duration(e.timestamp)} · {e.title}'
+            f'</button>'
+        )
+    return f"""
+    <div class="timeline">
+      <div class="timeline-row">
+        <span class="tc">00:00</span>
+        <div class="timeline-track" id="dc-results-track">
+          <span class="bar"></span>
+          {''.join(bands)}
+          {''.join(markers)}
+        </div>
+        <span class="tc right">{_fmt_duration(duration_s)}</span>
+      </div>
+      <div class="timeline-labels">
+        {''.join(labels)}
+      </div>
+    </div>
+    """
+
+
+def _moment_card_v5_html(event, coaching, still_path: str) -> str:
+    sev_cls = _sev_cls(event.severity)
+    sev_label = _sev_label(event.severity)
+    tc = _fmt_duration(event.timestamp)
+    still_url = _video_url(still_path) if still_path else ""
+    still_block = (
+        f'<img alt="{tc}" src="{still_url}"/>'
+        if still_url else '<div class="m-still-fallback"></div>'
+    )
+    action = ""
+    if coaching:
+        action = (coaching.action_plan or coaching.scene_analysis
+                  or coaching.scene_description or "")
+    action_block = (
+        f'<div class="m-action">{action}</div>' if action.strip() else ""
+    )
+    return f"""
+    <article class="moment" data-tc="{event.timestamp:.2f}">
+      <div class="m-still">
+        {still_block}
+        <span class="m-tc"><span class="dot {sev_cls}"></span>{tc}</span>
+        <span class="m-sev {sev_cls}">{sev_label}</span>
+      </div>
+      <div class="m-body">
+        <div class="m-title">{event.title}</div>
+        <p class="m-summary">{event.summary}</p>
+        {action_block}
+      </div>
+    </article>
+    """
+
+
+def _moments_section_html(events, coachings, event_stills, duration) -> str:
+    n = len(events)
+    if n == 0:
+        grid_cls = "n-0"
+    elif n == 1:
+        grid_cls = "n-1"
+    elif n == 2:
+        grid_cls = "n-2"
+    elif n == 3:
+        grid_cls = "n-3"
+    else:
+        grid_cls = "n-many"
+
+    if n == 0:
+        h2_html = "큰 위험 없이 부드럽게 흘러갔어요."
+        body = """
+        <div class="moments-empty">
+          <span class="em-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="5 12 10 17 19 8"/>
+            </svg>
+          </span>
+          <h3>위험 없이 부드럽게 흘러갔어요.</h3>
+          <p>이 영상에서는 짚어둘 만한 위험 순간이 없었습니다.
+             다음 주행에서도 이 톤을 유지해보세요.</p>
+        </div>
+        """
+    else:
+        h2_html = f'짚어둘 <em>{n}</em>개의 순간.'
+        body = "".join(
+            _moment_card_v5_html(
+                e,
+                coachings[i] if i < len(coachings) else None,
+                event_stills.get(e.frame_idx, ""),
+            )
+            for i, e in enumerate(events)
+        )
+
+    return f"""
+    <section class="results-moments">
+      <div class="results-section-head">
+        <div>
+          <span class="label">순간 · Moments</span>
+          <h2>{h2_html}</h2>
+        </div>
+      </div>
+      <div class="moments-grid {grid_cls}">
+        {body}
+      </div>
+    </section>
+    """
+
+
+# Korean long name → short label (design uses condensed names in the rail)
+_CAT_SHORT = {
+    "신호 인지": "신호", "차선 준수": "차선", "보행자 주의": "보행자",
+    "속도 관리": "속도", "안전거리": "안전거리",
+}
+# Korean name → icon key (matches _CATEGORY_ICONS below)
+_CAT_ICON_KEY = {
+    "신호 인지": "signal", "차선 준수": "lane",
+    "보행자 주의": "pedestrian", "속도 관리": "speed",
+    "안전거리": "distance",
+}
+_CATEGORY_ICONS = {
+    "signal": ('<svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/>'
+               '<circle cx="12" cy="8" r="1.5"/><circle cx="12" cy="13" r="1.5"/>'
+               '<circle cx="12" cy="18" r="1.5"/></svg>'),
+    "lane": ('<svg viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="21"/>'
+             '<line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="10" x2="12" y2="14"/>'
+             '<line x1="12" y1="18" x2="12" y2="21"/><line x1="18" y1="3" x2="18" y2="21"/></svg>'),
+    "pedestrian": ('<svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2"/>'
+                   '<path d="M12 7 v8 M12 15 l-3 6 M12 15 l3 6 M9 10 l-3 -1 M15 10 l3 -1"/></svg>'),
+    "speed": ('<svg viewBox="0 0 24 24"><path d="M4 14 a8 8 0 0 1 16 0"/>'
+              '<path d="M12 14 l4 -4"/><circle cx="12" cy="14" r="1.5"/></svg>'),
+    "distance": ('<svg viewBox="0 0 24 24"><rect x="3" y="13" width="6" height="6"/>'
+                 '<rect x="15" y="13" width="6" height="6"/>'
+                 '<line x1="9" y1="16" x2="15" y2="16" stroke-dasharray="1.5 2"/></svg>'),
+}
+
+
+def _breakdown_section_html(score, prior) -> str:
+    if not score or not score.categories:
+        return ""
+
+    prior_by_ko: dict[str, int] = {}
+    if prior and prior.score and prior.score.categories:
+        prior_by_ko = {c.name_ko: c.score for c in prior.score.categories}
+
+    focus_ko = score.focus_area.name_ko if score.focus_area else None
+
+    rows, deltas = [], []
+    for cat in score.categories:
+        short = _CAT_SHORT.get(cat.name_ko, cat.name_ko)
+        ic_key = _CAT_ICON_KEY.get(cat.name_ko, "signal")
+        tier = _category_tier(cat.score)
+        fill_cls = "bad" if tier == "tier-bad" else ("warn" if tier == "tier-warn" else "")
+        focus_cls = "focus" if focus_ko and cat.name_ko == focus_ko else ""
+
+        prior_score = prior_by_ko.get(cat.name_ko)
+        if prior_score is not None:
+            prior_mark = f'<span class="prior" style="left:{prior_score}%"></span>'
+            d = cat.score - prior_score
+            deltas.append(d)
+            if d > 0:
+                delta_html = f'<span class="bd-delta up">▲ {d}</span>'
+            elif d < 0:
+                delta_html = f'<span class="bd-delta down">▼ {-d}</span>'
+            else:
+                delta_html = '<span class="bd-delta same">— 0</span>'
+        else:
+            prior_mark = ""
+            delta_html = '<span class="bd-delta none">처음</span>'
+
+        rows.append(f"""
+        <div class="bd-row {focus_cls}">
+          <div class="bd-name">
+            <span class="ic">{_CATEGORY_ICONS[ic_key]}</span>
+            <span>{short}</span>
+          </div>
+          <div class="bd-bar">
+            <span class="fill {fill_cls}" style="--w:{cat.score}%;width:{cat.score}%"></span>
+            {prior_mark}
+          </div>
+          <span class="bd-score">{cat.score}</span>
+          {delta_html}
+        </div>
+        """)
+
+    if focus_ko:
+        h2_text = f'가장 약한 곳은 <em>{focus_ko}</em>예요.'
+    else:
+        h2_text = '모든 카테고리가 안정적이었어요.'
+
+    meta_html = ""
+    if deltas:
+        avg = sum(deltas) / len(deltas)
+        sign = "+" if avg >= 0 else ""
+        meta_html = f'<div class="meta">지난번 대비 <b>{sign}{avg:.1f}점</b></div>'
+
+    return f"""
+    <section class="results-breakdown">
+      <div class="results-section-head">
+        <div>
+          <span class="label">카테고리 · Breakdown</span>
+          <h2>{h2_text}</h2>
+        </div>
+        {meta_html}
+      </div>
+      <div class="bd-list">
+        {''.join(rows)}
+      </div>
+    </section>
+    """
+
+
+# ─── Surviving v4 helpers (still used by hero-prior block) ─────────────
+
+def _count_by_category(events) -> dict[str, int]:
+    """Tally event counts keyed by score-category short key (e.g. 'distance')."""
+    out: dict[str, int] = {}
+    for e in events or []:
+        out[e.category] = out.get(e.category, 0) + 1
+    return out
+
+
+def _name_ko_to_key() -> dict[str, str]:
+    from core.schema import SCORE_CATEGORY_DEFS
+    return {ko: key for key, _en, ko, _icon in SCORE_CATEGORY_DEFS}
 
 
 def _category_tier(s: int) -> str:
-    """Return the tier class for a category score — drives the bar color.
-    Brackets match the visual / verbal language of _score_comment."""
     if s >= 85:
         return "tier-good"
     if s >= 70:
@@ -971,36 +1373,14 @@ def _category_tier(s: int) -> str:
     return "tier-bad"
 
 
-def _count_by_category(events) -> dict[str, int]:
-    """Tally event counts keyed by score-category short key (e.g. 'distance').
-    Used to detect repeated patterns across runs."""
-    out: dict[str, int] = {}
-    for e in events or []:
-        out[e.category] = out.get(e.category, 0) + 1
-    return out
-
-
-# Korean label (CategoryScore.name_ko) → short key (Event.category).
-# Built lazily once so we can look events up by the focus area's Korean name.
-def _name_ko_to_key() -> dict[str, str]:
-    from core.schema import SCORE_CATEGORY_DEFS
-    return {ko: key for key, _en, ko, _icon in SCORE_CATEGORY_DEFS}
-
-
 def _hero_sentence(score, events, prior=None) -> tuple[str, str]:
-    """Returns (hero_html, secondary_text) — 2-line natural language summary
-    of the drive. The hero may contain a single <em> tag for emphasis.
-
-    When `prior` (a previous AnalysisRecord) is provided, the voice shifts
-    from one-shot scorecard ("오늘 주행, 정말 안정적이었어요") to a coach who
-    remembers ("지난번에 얘기한 차간거리, 이번엔 좋아졌어요"). The repeated-
-    focus-area case is the killer moment — that's the line TMAP can't say.
-    """
+    """4-branch history-aware narrative used to populate the hero-prior block.
+    Same logic as v4 — preserved verbatim because it's already battle-tested."""
     if not score:
         return ("분석이 완료되었어요.", "결과를 정리하고 있어요.")
 
     overall = score.total
-    focus = score.focus_area  # CategoryScore | None — the weakest category
+    focus = score.focus_area
     n_total = len(events) if events else 0
     n_risk    = sum(1 for e in (events or []) if e.severity == "danger")
     n_caution = sum(1 for e in (events or []) if e.severity == "caution")
@@ -1009,7 +1389,7 @@ def _hero_sentence(score, events, prior=None) -> tuple[str, str]:
         return _hero_with_history(score, events, prior,
                                   overall, focus, n_total, n_risk, n_caution)
 
-    # ─── First analysis ever — no prior to compare against ───
+    # First analysis ever
     if overall >= 88 and n_risk == 0:
         hero = "오늘 주행, <em>정말 안정적</em>이었어요."
     elif overall >= 75:
@@ -1030,7 +1410,6 @@ def _hero_sentence(score, events, prior=None) -> tuple[str, str]:
         else:
             hero = "오늘은 평소보다 <em>거친 주행</em>이었어요."
 
-    # First analysis — set the expectation that comparison starts next time
     if n_total == 0:
         secondary = "큰 위험 없이 부드럽게 흘러갔어요. 다음 주행부터 비교가 시작됩니다."
     elif n_risk > 0:
@@ -1048,12 +1427,6 @@ def _hero_sentence(score, events, prior=None) -> tuple[str, str]:
 def _hero_with_history(score, events, prior,
                        overall: int, focus, n_total: int,
                        n_risk: int, n_caution: int) -> tuple[str, str]:
-    """Coach-mode hero — picks the story that best describes how *this* drive
-    differs from the previous one. Priority order:
-      1. Same focus area as last time → "지난번에 얘기한 X, 이번에도…"  ← the moment
-      2. Score jumped or fell meaningfully → "지난번보다 +/-N점, …"
-      3. Otherwise → neutral status line referencing prior
-    """
     prior_score = prior.score.total
     delta = overall - prior_score
     prior_focus = prior.score.focus_area
@@ -1064,7 +1437,6 @@ def _hero_with_history(score, events, prior,
                   and focus.name_ko == prior_focus.name_ko)
     ko2key = _name_ko_to_key()
 
-    # ── 1. Same weakness twice in a row — strongest "I remember" beat ──
     if same_focus and focus is not None:
         key = ko2key.get(focus.name_ko, "")
         now_n = now_cats.get(key, 0)
@@ -1081,9 +1453,6 @@ def _hero_with_history(score, events, prior,
         secondary = _secondary_with_delta(delta, n_total, n_risk, n_caution)
         return (hero, secondary)
 
-    # ── 2. Prior focus area cleared this run — meaningful win.
-    #    Only celebrate when overall score didn't tank; otherwise the user
-    #    sees "한 번도 안 나왔어요" next to a falling number and gets confused.
     if (prior_focus is not None
             and (focus is None or focus.name_ko != prior_focus.name_ko)
             and delta >= -2):
@@ -1096,7 +1465,6 @@ def _hero_with_history(score, events, prior,
             secondary = _secondary_with_delta(delta, n_total, n_risk, n_caution)
             return (hero, secondary)
 
-    # ── 3. Score moved meaningfully (±3 or more) ──
     if delta >= 3:
         if focus:
             hero = (f"지난번보다 <em>+{delta}점</em>.<br/>"
@@ -1110,7 +1478,6 @@ def _hero_with_history(score, events, prior,
         else:
             hero = f"지난번보다 <em>{delta}점</em>,<br/>오늘은 평소만큼은 아니었어요."
     else:
-        # ── 4. Score essentially flat — describe state but acknowledge history
         if overall >= 88 and n_risk == 0:
             hero = f"지난번과 비슷하게 <em>안정적</em>이었어요."
         elif focus:
@@ -1125,7 +1492,6 @@ def _hero_with_history(score, events, prior,
 
 def _secondary_with_delta(delta: int, n_total: int,
                           n_risk: int, n_caution: int) -> str:
-    """One-liner under the hero — what we found, with a quick history tag."""
     sign = "+" if delta > 0 else ""
     delta_str = f"점수 변화 {sign}{delta}점" if delta != 0 else "점수 변화 없음"
     if n_total == 0:
@@ -1139,117 +1505,7 @@ def _secondary_with_delta(delta: int, n_total: int,
     return f"총 {n_total}건의 핵심 순간이 있었어요 · {delta_str}."
 
 
-_SEVERITY_TO_BADGE = {
-    "safe":    ("GOOD",   ""),
-    "caution": ("REVIEW", "amber"),
-    "danger":  ("RISK",   "risk"),
-}
-
-
-def _event_card_html(event, coaching, still_url: str, duration_s: float) -> str:
-    """One key-moment card — still image + classification + headline +
-    summary + a single line of VLM coaching."""
-    badge_text, badge_cls = _SEVERITY_TO_BADGE.get(event.severity, ("EVENT", ""))
-    tc = _fmt_duration(event.timestamp)
-    coach_line = ""
-    if coaching:
-        # Action plan is the actionable take-away — use it as the coach line.
-        coach_line = (coaching.action_plan or coaching.scene_analysis
-                      or coaching.scene_description or "")
-    img_el = (
-        f'<img src="{still_url}" alt="{tc} {event.title}"/>'
-        if still_url else
-        '<div class="results-moment-fallback"></div>'
-    )
-    return f"""
-    <article class="results-moment-card">
-      <div class="results-moment-img">
-        {img_el}
-        <span class="results-moment-tc">{tc}</span>
-        <span class="results-moment-badge {badge_cls}">{badge_text}</span>
-      </div>
-      <div class="results-moment-cat">{(event.category or '').upper()}</div>
-      <h4>{event.title}</h4>
-      <p>{event.summary}</p>
-      {f'<div class="results-moment-coach"><b>코칭</b><span>{coach_line}</span></div>' if coach_line else ''}
-    </article>
-    """
-
-
-def _timeline_markers_html(events, duration_s: float) -> str:
-    """Build timeline DOM: a colored ±1-second band UNDER each event +
-    the marker line above. Bands come first so markers sit on top."""
-    if duration_s <= 0 or not events:
-        return ""
-    bands, markers = [], []
-    for e in events:
-        pct = max(0.0, min(100.0, (e.timestamp / duration_s) * 100))
-        _, cls = _SEVERITY_TO_BADGE.get(e.severity, ("", ""))
-        # ±1 second window — the moment "around" the event
-        band_start = max(0.0, ((e.timestamp - 1) / duration_s) * 100)
-        band_end   = min(100.0, ((e.timestamp + 1) / duration_s) * 100)
-        band_w = max(0.0, band_end - band_start)
-        bands.append(
-            f'<div class="results-tl-band {cls}" '
-            f'style="left:{band_start:.2f}%; width:{band_w:.2f}%"></div>'
-        )
-        label = f"{_fmt_duration(e.timestamp)} · {e.title}"
-        markers.append(
-            f'<div class="results-tl-marker {cls}" '
-            f'style="left:{pct:.1f}%" data-l="{label}"></div>'
-        )
-    return "".join(bands) + "".join(markers)
-
-
-def _ticks_html(duration_s: float, count: int = 3) -> str:
-    if duration_s <= 0:
-        return "<span>00:00</span>" * count
-    parts = []
-    for i in range(count):
-        t = duration_s * (i / (count - 1))
-        parts.append(f"<span>{_fmt_duration(t)}</span>")
-    return "".join(parts)
-
-
-def _category_bars_html(score) -> str:
-    if not score or not score.categories:
-        return ""
-    rows = []
-    for cat in score.categories:
-        w = max(0, min(100, cat.score))
-        tier = _category_tier(cat.score)
-        rows.append(f"""
-        <div class="results-cat-row {tier}">
-          <span class="results-cat-name">{cat.name_ko}</span>
-          <span class="results-cat-bar"><span class="results-cat-fill" style="width:{w}%"></span></span>
-          <span class="results-cat-num">{cat.score}</span>
-        </div>
-        """)
-    return "".join(rows)
-
-
-def _score_delta_html(score, prior) -> str:
-    """Small chip under the big score number — '+3 vs 지난 주행' / '−2 vs 지난 주행'
-    / '첫 분석' when there's no prior. Empty string if no score either."""
-    if not score:
-        return ""
-    if prior is None:
-        return ('<div class="results-score-delta first">'
-                '첫 분석 · 다음부터 비교 시작'
-                '</div>')
-    delta = score.total - prior.score.total
-    if delta > 0:
-        cls, arrow, n = "up", "▲", delta
-    elif delta < 0:
-        cls, arrow, n = "down", "▼", -delta
-    else:
-        cls, arrow, n = "flat", "·", 0
-    label = "변화 없음" if delta == 0 else f"{arrow} {n}점"
-    return (f'<div class="results-score-delta {cls}">'
-            f'<span class="delta-n">{label}</span>'
-            f'<span class="delta-l">vs 지난 주행</span>'
-            f'</div>')
-
+# ─── The screen ───────────────────────────────────────────────
 
 def results_screen_html(
     video_path: str = "",
@@ -1262,140 +1518,118 @@ def results_screen_html(
     session_id: str = "—",
     prior=None,
 ) -> str:
-    """The cinematic RESULTS finale — one HTML blob in v4 tone.
+    """RESULTS v5 — coaching sentence is the hero, score is supporting,
+    annotated video is the evidence. One self-contained HTML blob.
 
-    Sections, top to bottom:
-      nav · stepper (all done) · hero sentence + score · timeline ·
-      key-moment cards · annotated video · category breakdown · CTA · footer.
+    Sections top-to-bottom: nav · 4-step stepper (all done) · HERO (kicker +
+    word-by-word quote + ref chip + prior block + still + score block) ·
+    Evidence (annotated video + clickable timeline) · adaptive moments grid ·
+    Breakdown (icon + bar + prior tick + delta chip + focus highlight) · CTA.
 
-    `prior`: most recent past AnalysisRecord (from core.history.load_prior).
-    When set, the hero sentence and score area both reference it — turning
-    the report from a one-shot scorecard into a longitudinal coaching beat.
+    `prior`: AnalysisRecord | None — when present, populates the .hero-prior
+    block (longitudinal narrative) and the delta/prior-tick visuals.
     """
-    hero, secondary = _hero_sentence(score, events, prior=prior)
-    score_comment = _score_comment(score)
-    delta_html = _score_delta_html(score, prior)
-    overall = score.total if score else 0
-    grade = score.grade if score else "—"
-    safe_name = filename or "주행 영상"
     events = events or []
     coachings = coachings or []
     event_stills = event_stills or {}
+
+    # Pick the hero event + its coaching + its still
+    hi = _pick_hero_event_idx(events)
+    hero_event = events[hi] if hi is not None else None
+    hero_coaching = coachings[hi] if (hi is not None and hi < len(coachings)) else None
+    hero_still_path = event_stills.get(hero_event.frame_idx, "") if hero_event else ""
+
+    quote_text = _hero_quote_text(hero_event, hero_coaching)
+    hero_quote = _hero_quote_html(quote_text)
+    hero_ref = _hero_ref_html(hero_event)
+    prior_block = _hero_prior_block_html(score, events, prior)
+    hero_still = _hero_still_html(hero_still_path, hero_event)
+    score_block = _score_block_html(score, prior)
+
+    # Evidence section — annotated video + timeline
     vurl = _video_url(video_path)
-
-    # Pair events with their coachings — assume same order
-    moment_cards = ""
-    for i, ev in enumerate(events[:3]):  # show up to 3 cards
-        co = coachings[i] if i < len(coachings) else None
-        still = event_stills.get(ev.frame_idx, "")
-        still_url = _video_url(still) if still else ""
-        moment_cards += _event_card_html(ev, co, still_url, duration)
-
-    if not moment_cards:
-        moment_cards = (
-            '<div class="results-moments-empty">'
-            '큰 이벤트 없이 부드럽게 흘러간 주행이었어요.'
-            '</div>'
-        )
-
-    video_block = ""
     if vurl:
-        video_block = f"""
-        <section class="results-video-wrap">
-          <div class="results-section-head">
-            <span class="label label-signal">Annotated · 주석 영상</span>
-            <h3>검출 결과를 영상 위에 직접 표시했어요.</h3>
-          </div>
-          <div class="results-video-frame">
-            <video src="{vurl}" controls preload="metadata" playsinline></video>
-            <span class="ready-br ready-br-tl"></span>
-            <span class="ready-br ready-br-tr"></span>
-            <span class="ready-br ready-br-bl"></span>
-            <span class="ready-br ready-br-br"></span>
-          </div>
-        </section>
-        """
+        video_el = (f'<video controls preload="metadata" playsinline '
+                    f'src="{vurl}" id="dc-results-video"></video>')
+    else:
+        video_el = ('<div class="video-stage-empty">'
+                    '주석 영상이 준비되지 않았어요.</div>')
+    timeline = _timeline_html_v5(events, duration)
+    dur_str = _fmt_duration(duration)
 
-    cat_bars = _category_bars_html(score)
-    cat_section = ""
-    if cat_bars:
-        cat_section = f"""
-        <section class="results-categories">
-          <div class="results-section-head">
-            <span class="label label-signal">Breakdown · 카테고리</span>
-            <h3>5개 항목으로 본 오늘의 주행.</h3>
-          </div>
-          <div class="results-cat-grid">{cat_bars}</div>
-        </section>
-        """
+    evidence_section = f"""
+    <section class="results-evidence">
+      <div class="results-section-head">
+        <div>
+          <span class="label">증거 · Evidence</span>
+          <h2>AI가 본 <em>{dur_str}</em>, 그대로.</h2>
+        </div>
+        <div class="meta"><b>00:00</b> — <b>{dur_str}</b> · <b>{len(events)}</b>개 순간</div>
+      </div>
+      <div class="video-stage" id="dc-results-stage">
+        {video_el}
+      </div>
+      {timeline}
+    </section>
+    """
+
+    moments_section = _moments_section_html(events, coachings, event_stills, duration)
+    breakdown_section = _breakdown_section_html(score, prior)
+
+    safe_name = filename or "주행 영상"
 
     return f"""
 <div class="dc-v3-root results-root">
 
-  <nav class="ready-nav">
-    <a class="brand" href="#dc-top" aria-label="DrivingAssis">
-      <span class="brand-mark" aria-hidden="true">{_BRAND_SVG}</span>
-      <span>DRIVING<span style="color:var(--signal)">ASSIS</span></span>
+  <nav class="results-nav">
+    <a class="results-brand" href="#dc-top" aria-label="DrivingAssis">
+      <span class="mark" aria-hidden="true">{_BRAND_SVG}</span>
+      <span>DRIVING<span class="accent">ASSIS</span></span>
     </a>
-    <div class="ready-nav-right">
-      <span class="ready-session">SESSION · {session_id}</span>
+    <div class="results-nav-right">
+      <span class="ready-pill"><span class="dot"></span>리포트 준비됨</span>
+      <span>SESSION · {session_id}</span>
     </div>
   </nav>
 
-  <div class="ready-stepper-wrap">
-    <div class="ready-stepper" role="list">
-      <div class="ready-step done"><span class="num">01</span><span class="check">✓</span><span>업로드</span></div>
-      <div class="ready-step done"><span class="num">02</span><span class="check">✓</span><span>검토</span></div>
-      <div class="ready-step done"><span class="num">03</span><span class="check">✓</span><span>분석</span></div>
-      <div class="ready-step current"><span class="num">04</span><span class="pulse"></span><span>리포트</span></div>
-    </div>
+  <div class="results-stepper">
+    <div class="results-step done"><span class="num">01</span><span class="check">✓</span><span>업로드</span></div>
+    <div class="results-step done"><span class="num">02</span><span class="check">✓</span><span>검토</span></div>
+    <div class="results-step done"><span class="num">03</span><span class="check">✓</span><span>분석</span></div>
+    <div class="results-step done"><span class="num">04</span><span class="check">✓</span><span>리포트</span></div>
   </div>
 
   <section class="results-hero">
-    <div class="results-hero-left">
-      <span class="label label-signal">Drive Report · {safe_name}</span>
-      <h1 class="results-hero-sentence">{hero}</h1>
-      <p class="results-hero-secondary">{secondary}</p>
+    <div class="hero-copy">
+      <span class="kicker">이번 주행의 한 마디 <span class="of">/ COACH&rsquo;S NOTE</span></span>
+      {hero_quote}
+      {hero_ref}
+      {prior_block}
     </div>
-    <div class="results-hero-score">
-      <div class="results-score-num">{overall}<span class="results-score-unit">/100</span></div>
-      {delta_html}
-      <div class="results-score-comment">{score_comment}</div>
-      <div class="results-score-grade">GRADE · <b>{grade}</b></div>
-    </div>
-  </section>
-
-  <section class="results-timeline-wrap">
-    <div class="results-timeline-label">
-      <h4>Timeline · 검출된 의사결정</h4>
-      <div class="results-tl-ticks">{_ticks_html(duration)}</div>
-    </div>
-    <div class="results-tl">
-      {_timeline_markers_html(events, duration)}
+    <div class="hero-still-wrap">
+      {hero_still}
+      {score_block}
     </div>
   </section>
 
-  <section class="results-moments-wrap">
-    <div class="results-section-head">
-      <span class="label label-signal">Key Moments · 핵심 순간</span>
-      <h3>다시 봐야 할 순간과 한 줄 코칭.</h3>
-    </div>
-    <div class="results-moments-grid">
-      {moment_cards}
-    </div>
-  </section>
+  {evidence_section}
 
-  {video_block}
+  {moments_section}
 
-  {cat_section}
+  {breakdown_section}
 
   <section class="results-cta">
+    <div class="cta-line">다음 주행, 더 나아지려면</div>
     <button class="ready-btn-go" type="button" id="results-again-btn">
-      또 다른 주행 분석하기 {_arrow_go_svg()}
+      다른 영상으로 다시 시작
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12 L19 12 M13 6 L19 12 L13 18"/>
+      </svg>
     </button>
   </section>
 
-  <footer class="ready-foot">© 2026 DRIVINGASSIS · 분석 세션 {session_id}</footer>
+  <footer class="results-foot">© 2026 DRIVINGASSIS · 세션 {session_id}</footer>
 
 </div>
 """

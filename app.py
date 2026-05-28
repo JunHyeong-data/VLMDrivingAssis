@@ -139,6 +139,56 @@ DC_BOOT_JS = """
       });
     }
 
+    // --- 3f. RESULTS timeline + moment cards → seek the annotated video ---
+    // Any element with `data-tc` (timeline marker, label button, moment card)
+    // becomes a seek target. Click → set video.currentTime + play. Also
+    // updates the playhead position on timeupdate so the white tick rides
+    // along with playback.
+    const resultsVideo = document.getElementById('dc-results-video');
+    const resultsTrack = document.getElementById('dc-results-track');
+    if (resultsVideo && resultsTrack && !resultsTrack.__bound) {
+      resultsTrack.__bound = true;
+      const seekFromEl = (el) => {
+        const tc = parseFloat(el.dataset.tc);
+        if (Number.isFinite(tc)) {
+          try {
+            resultsVideo.currentTime = tc;
+            resultsVideo.play().catch(() => {});
+          } catch (e) { /* ignore */ }
+          // visual feedback on labels
+          document.querySelectorAll('.timeline-labels button').forEach(b =>
+            b.classList.toggle('active', b === el)
+          );
+        }
+      };
+      document.querySelectorAll(
+        '.results-root [data-tc]'
+      ).forEach(el => {
+        if (el.__seekBound) return;
+        el.__seekBound = true;
+        el.addEventListener('click', e => {
+          e.preventDefault();
+          seekFromEl(el);
+        });
+      });
+
+      // Playhead that rides with playback
+      let ph = resultsTrack.querySelector('.playhead');
+      if (!ph) {
+        ph = document.createElement('span');
+        ph.className = 'playhead';
+        resultsTrack.appendChild(ph);
+      }
+      const updatePlayhead = () => {
+        const dur = resultsVideo.duration || 0;
+        if (dur > 0) {
+          ph.style.left = (100 * resultsVideo.currentTime / dur) + '%';
+        }
+      };
+      resultsVideo.addEventListener('timeupdate', updatePlayhead);
+      resultsVideo.addEventListener('loadedmetadata', updatePlayhead);
+    }
+
     // --- 3d. ANALYZING cancel button → reset to IDLE ---
     // The visible '분석 중단' button in the new analyzing nav. We don't
     // actually interrupt the run_analysis generator (Gradio queues it to
