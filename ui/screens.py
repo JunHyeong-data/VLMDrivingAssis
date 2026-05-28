@@ -1687,9 +1687,19 @@ def _spine_sparkline_svg(scores: list[int]) -> str:
         return ""
     pts = scores
     n = len(pts)
-    W, H, pad_x, pad_y = 100, 90, 4, 10
-    lo, hi = min(pts), max(pts)
-    span = max(1, hi - lo)
+    # Padding tuned so:
+    #  • leftmost/rightmost dots don't kiss the SVG edges
+    #  • the latest-dot halo (r=7) is fully visible inside the viewBox
+    W, H, pad_x, pad_y = 100, 90, 9, 16
+    raw_lo, raw_hi = min(pts), max(pts)
+    # Minimum visible span so a tight cluster (e.g. 94..97) doesn't span the
+    # entire chart height and exaggerate small differences. Re-centers the
+    # data within the expanded range, clamped to 0..100.
+    MIN_SPAN = 12
+    span = max(MIN_SPAN, raw_hi - raw_lo)
+    mid = (raw_lo + raw_hi) / 2
+    lo = max(0.0, min(100.0 - span, mid - span / 2))
+    hi = lo + span
     def xs(i: int) -> float:
         if n == 1:
             return W / 2
