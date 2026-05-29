@@ -348,10 +348,18 @@ DC_BOOT_JS = """
     //  generator — no client-side animation. See app.run_analysis.)
 
     // --- 4. BRAND click → invisible home_btn → reset to IDLE ---
+    // Covers every screen's logo variant (.brand on IDLE/Ready,
+    // .analyz-brand / .results-brand / .history-brand on the others). On IDLE
+    // the hero exists → we leave the anchor's scroll-to-top behavior; on any
+    // other screen, clicking the logo resets to the first screen.
     const homeBtn = document.querySelector('.dc-home-hit');
-    document.querySelectorAll('.dc-v3-root .brand').forEach(brand => {
+    document.querySelectorAll(
+      '.dc-v3-root .brand, .dc-v3-root .analyz-brand,'
+      + ' .dc-v3-root .results-brand, .dc-v3-root .history-brand'
+    ).forEach(brand => {
       if (brand.__bound) return;
       brand.__bound = true;
+      brand.style.cursor = 'pointer';
       brand.addEventListener('click', e => {
         const idleVisible = document.querySelector('.dc-v3-root .hero');
         if (!idleVisible && homeBtn) {
