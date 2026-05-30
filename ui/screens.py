@@ -111,8 +111,8 @@ def team_screen_html() -> str:
       <h1>운전을 가르치는<br/><span class="accent">백미러.</span></h1>
       <p class="lede">
         BackMirror는 블랙박스 영상 한 편에서 <b>위험했던&nbsp;순간</b>을 찾아냅니다.
-        그리고 <b>왜&nbsp;위험했는지</b>, <b>다음에&nbsp;뭘&nbsp;바꿀지</b>까지 짚어주는 초보운전자 코치예요.
-        점수만 매기는 도구가 아니라, 옆자리에서 같이 봐주는 사람에 가깝습니다.
+        그리고 <b>왜&nbsp;위험했는지</b>, <b>다음에&nbsp;뭘&nbsp;바꿀지</b>까지 짚어주는 운전 코치예요.
+        점수만 매기는 도구가 아니라, 운전을 돌아보고 싶은 누구에게나 곁에서 함께 봐주는 코치입니다.
       </p>
       <div class="team-hero-meta">
         <div class="hm"><span class="n">4단계</span><span class="l">검출 · 이벤트 · 코칭 · 리포트</span></div>
@@ -161,7 +161,7 @@ def team_screen_html() -> str:
       </div>
     </div>
 
-    <p class="approach-diff">TMAP UBI는 <b>운전&nbsp;점수</b>를 줍니다.
+    <p class="approach-diff">TMAP UBI는 <b>운전&nbsp;점수</b>를 줍니다.<br/>
        BackMirror는 <span class="accent">왜&nbsp;위험했고 다음에&nbsp;뭘&nbsp;바꿀지</span>를 줍니다.</p>
   </section>
 
@@ -181,7 +181,7 @@ def team_screen_html() -> str:
     <p class="tc-sub">BackMirror가 만들고 싶은 건 평가가 아니라, 다음 주행이 조금 더 안전해지는 한 문장입니다.</p>
   </section>
 
-  <footer class="team-foot">© 2026 BACKMIRROR · 초보운전자를 위한 운전 코치</footer>
+  <footer class="team-foot">© 2026 BACKMIRROR · 운전을 다시 보는 모두를 위한 코치</footer>
 </div>
 """
 
@@ -313,7 +313,7 @@ def faq_screen_html() -> str:
     <p class="tc-sub">대부분의 질문은 직접 분석해보면 풀립니다. 블랙박스 영상을 올리면 BackMirror가 그 자리에서 답을 보여드려요.</p>
   </section>
 
-  <footer class="faq2-foot">© 2026 BACKMIRROR · 초보운전자를 위한 운전 코치</footer>
+  <footer class="faq2-foot">© 2026 BACKMIRROR · 운전을 다시 보는 모두를 위한 코치</footer>
 </div>
 """
 

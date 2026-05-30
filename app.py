@@ -162,16 +162,33 @@ DC_BOOT_JS = """
       resultsTrack.__bound = true;
       const seekFromEl = (el) => {
         const tc = parseFloat(el.dataset.tc);
-        if (Number.isFinite(tc)) {
-          try {
-            resultsVideo.currentTime = tc;
-            resultsVideo.play().catch(() => {});
-          } catch (e) { /* ignore */ }
-          // visual feedback on labels
-          document.querySelectorAll('.timeline-labels button').forEach(b =>
-            b.classList.toggle('active', b === el)
-          );
-        }
+        if (!Number.isFinite(tc)) return;
+        // 마커는 '그 순간'을 가리키므로 전체가 아니라 이벤트 구간만 재생한다:
+        // 1.5초 앞(컨텍스트) ~ 3초 뒤. 구간 끝에서 자동 정지하고, 사용자가
+        // 재생바를 직접 다시 누르면 일반 재생으로 돌아간다(핸들러가 1회성).
+        const start = Math.max(0, tc - 1.5);
+        const dur = resultsVideo.duration;
+        const end = Number.isFinite(dur) ? Math.min(dur, tc + 3) : tc + 3;
+        try {
+          if (resultsVideo.__clipStop) {
+            resultsVideo.removeEventListener('timeupdate', resultsVideo.__clipStop);
+          }
+          const stop = () => {
+            if (resultsVideo.currentTime >= end) {
+              resultsVideo.pause();
+              resultsVideo.removeEventListener('timeupdate', stop);
+              resultsVideo.__clipStop = null;
+            }
+          };
+          resultsVideo.__clipStop = stop;
+          resultsVideo.addEventListener('timeupdate', stop);
+          resultsVideo.currentTime = start;
+          resultsVideo.play().catch(() => {});
+        } catch (e) { /* ignore */ }
+        // visual feedback on labels
+        document.querySelectorAll('.timeline-labels button').forEach(b =>
+          b.classList.toggle('active', b === el)
+        );
       };
       document.querySelectorAll(
         '.results-root [data-tc]'
@@ -204,8 +221,8 @@ DC_BOOT_JS = """
     // --- 3d. ANALYZING cancel button → reset to IDLE + cancel the run ---
     // The visible '분석 중단' button bridges to the hidden home button, which
     // both snaps the view back to IDLE and cancels the running run_analysis
-    // generator (see home_btn.click cancels=[run_evt] server-side). The
-    // cancelled run never reaches save_analysis, so it leaves no history row.
+    // generator (see home_btn.click cancels=[run_evt] server-side). A run
+    // cancelled during analysis stops before save_analysis — no history row.
     const analyzCancel = document.getElementById('analyz-cancel-btn');
     if (analyzCancel && !analyzCancel.__bound) {
       analyzCancel.__bound = true;
@@ -1099,7 +1116,12 @@ def build_app() -> gr.Blocks:
     # We do NOT rely solely on launch(js=...) because Gradio 6 sometimes
     # doesn't auto-invoke that function. A <script> tag is guaranteed to
     # execute as soon as the document loads.
-    head_html = f"<script>(function(){{ ({DC_BOOT_JS})(); }})();</script>"
+    # favicon: 브라우저는 SVG 파비콘을 지원하지만 Gradio 의 favicon_path 는 SVG 를
+    # 무시하므로, 사이드미러 로고를 <link> 로 직접 주입한다(assets 는 allowed_paths).
+    head_html = (
+        '<link rel="icon" type="image/svg+xml" href="/gradio_api/file=assets/favicon.svg">'
+        f"<script>(function(){{ ({DC_BOOT_JS})(); }})();</script>"
+    )
     with gr.Blocks(title="BackMirror", head=head_html) as app:
         # Invisible click targets bridged by DC_BOOT_JS. These MUST live at
         # the top level (not inside conditionally-visible Groups) because
@@ -1307,8 +1329,8 @@ def build_app() -> gr.Blocks:
 
         # Header brand → IDLE (from any screen)
         # 분석 중 홈/중단으로 나가면 run_analysis 제너레이터를 실제로 취소한다
-        # ('분석 중단'·brand·홈 모두 home_btn 으로 브릿지됨). 취소되면 generator 가
-        # save_analysis 까지 못 가므로 중단한 분석이 HISTORY 에 남지 않는다.
+        # ('분석 중단'·brand·홈 모두 home_btn 으로 브릿지됨). 분석 도중 취소하면
+        # generator 가 save_analysis 전에 멈춰, 그 분석은 HISTORY 에 남지 않는다.
         home_btn.click(fn=go_idle, outputs=screen_outputs,
                        show_progress="hidden", cancels=[run_evt])
 

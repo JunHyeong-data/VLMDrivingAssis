@@ -279,7 +279,7 @@ body:has(.dc-v3-root) main {
   --line:      rgba(255,255,255,0.10);
   --line-2:    rgba(255,255,255,0.18);
   --muted:     rgba(255,255,255,0.6);
-  --muted-2:   rgba(255,255,255,0.42);
+  --muted-2:   rgba(255,255,255,0.52);
   --signal:    #00E59A;
   --signal-deep: #00B179;
   --amber:     #FFB547;
@@ -407,7 +407,7 @@ body:has(.dc-v3-root) main {
   font-family: Inter, sans-serif;
   font-size: 13px; font-weight: 500;
   letter-spacing: 0.08em;
-  color: var(--muted);
+  color: var(--ink);
   cursor: pointer;
   transition: color .2s var(--v3-ease);
 }
@@ -1382,7 +1382,7 @@ body:has(.dc-v3-root) main {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   white-space: nowrap;
-  color: rgba(255,255,255,0.32);
+  color: var(--muted-2);
   transition: color .25s ease;
 }
 .dc-v3-root .ready-step > * {
@@ -1691,7 +1691,7 @@ body:has(.dc-v3-root) main {
   margin-top: 12px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
+  color: var(--muted-2);
 }
 .dc-v3-root .ready-kbd-hint .kbd {
   display: inline-flex; align-items: center; justify-content: center;
@@ -1711,7 +1711,7 @@ body:has(.dc-v3-root) main {
   text-align: center;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
+  color: var(--muted-2);
 }
 
 /* Hidden Gradio buttons that the visible <button>s bridge to via JS.
@@ -1813,7 +1813,7 @@ body:has(.dc-v3-root) main {
   position: relative;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
+  color: var(--muted-2);
   white-space: nowrap;
 }
 .dc-v3-root .analyz-step::before{
@@ -1821,7 +1821,7 @@ body:has(.dc-v3-root) main {
   height: 2px; background: var(--line);
 }
 .dc-v3-root .analyz-step > * { flex: 0 0 auto !important; }
-.dc-v3-root .analyz-step .num{ color: rgba(255,255,255,0.28); }
+.dc-v3-root .analyz-step .num{ color: inherit; }
 .dc-v3-root .analyz-step.done{ color: var(--muted); }
 .dc-v3-root .analyz-step.done::before{ background: var(--signal-deep); opacity: 0.7; }
 .dc-v3-root .analyz-step.done .num{ color: var(--signal-deep); }
@@ -1957,7 +1957,7 @@ body:has(.dc-v3-root) main {
 }
 .dc-v3-root .analyz-phases li .num{
   font-size: 9px; letter-spacing: 0.18em;
-  color: rgba(255,255,255,0.28);
+  color: var(--muted-2);
 }
 .dc-v3-root .analyz-phases li .name{
   font-family: 'Pretendard Variable', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
@@ -2189,7 +2189,7 @@ body:has(.dc-v3-root) main {
   position: relative;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px; letter-spacing: 0.2em; text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
+  color: var(--muted-2);
   white-space: nowrap;
 }
 .dc-v3-root .results-step::before {
@@ -2618,16 +2618,13 @@ body:has(.dc-v3-root) main {
   color: var(--muted); max-width: 62ch; margin: 0;
 }
 .dc-v3-root .team-approach,
-.dc-v3-root .team-members,
-.dc-v3-root .team-faq {
+.dc-v3-root .team-members {
   max-width: 1100px; margin: 0 auto;
   padding: clamp(56px, 9vh, 120px) var(--v3-pad);
 }
 .dc-v3-root .team-approach > .label,
-.dc-v3-root .team-members > .label,
-.dc-v3-root .team-faq > .label { display: inline-block; margin-bottom: 18px; }
-.dc-v3-root .team-members h2,
-.dc-v3-root .team-faq h2 {
+.dc-v3-root .team-members > .label { display: inline-block; margin-bottom: 18px; }
+.dc-v3-root .team-members h2 {
   font-size: clamp(28px, 3.6vw, 46px); font-weight: 800;
   letter-spacing: -0.03em; margin: 0 0 38px; color: var(--ink);
 }
@@ -3272,7 +3269,7 @@ body:has(.dc-v3-root) main {
   background: transparent;
 }
 .dc-v3-root .bd-delta.none {
-  color: rgba(255,255,255,0.28); border: 1px solid var(--line);
+  color: var(--muted-2); border: 1px solid var(--line);
   background: transparent; font-size: 10px;
 }
 @media (max-width: 720px) {
@@ -3302,7 +3299,7 @@ body:has(.dc-v3-root) main {
   text-align: center;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
+  color: var(--muted-2);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -3436,7 +3433,7 @@ body:has(.dc-v3-root) main {
   color: var(--muted-2);
   display: flex; justify-content: space-between; align-items: baseline;
 }
-.dc-v3-root .ov-spark .ov-label .range { color: rgba(255,255,255,0.28); }
+.dc-v3-root .ov-spark .ov-label .range { color: var(--muted-2); }
 
 .dc-v3-root .spark-wrap { position: relative; width: 100%; }
 .dc-v3-root .spark-wrap svg {
@@ -3614,7 +3611,7 @@ body:has(.dc-v3-root) main {
 .dc-v3-root .node-gap .gap-text {
   padding: 0 0 18px 4px;
   font-size: 13px; line-height: 1.5;
-  color: rgba(255,255,255,0.42);
+  color: var(--muted);
   display: flex; align-items: center; gap: 10px;
 }
 .dc-v3-root .node-gap .gap-text::before {
@@ -3847,5 +3844,5 @@ body:has(.dc-v3-root) main {
   text-align: center;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
-  color: rgba(255,255,255,0.28);
+  color: var(--muted-2);
 }
