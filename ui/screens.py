@@ -1485,9 +1485,8 @@ def _timeline_html_v5(events, duration_s: float) -> str:
 
 def _cot_details_html(coaching) -> str:
     """DriveVLM-style 3-stage reasoning (상황 묘사 → 위험 분석 → 행동 제안),
-    collapsed by default. The one-line action above is the takeaway; this
-    discloses the VLM's full chain-of-thought — the 'why' that separates
-    contextual coaching from a bare score. Native <details>, no JS."""
+    collapsed by default. Uses onclick toggle instead of native <details>
+    because Gradio's gr.HTML blocks the native toggle interaction."""
     if not coaching:
         return ""
     stages = [
@@ -1504,17 +1503,23 @@ def _cot_details_html(coaching) -> str:
     )
     if not rows:
         return ""
+    _toggle_js = (
+        "var c=this.parentElement;"
+        "var b=c.querySelector('.cot-body');"
+        "c.classList.toggle('open');"
+        "b.style.display=c.classList.contains('open')?'flex':'none';"
+    )
     return f"""
-        <details class="m-cot">
-          <summary>
+        <div class="m-cot">
+          <div class="m-cot-summary" onclick="{_toggle_js}">
             <span class="cot-sum-label">AI 추론 과정</span>
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M6 9 L12 15 L18 9"/>
             </svg>
-          </summary>
-          <div class="cot-body">{rows}</div>
-        </details>
+          </div>
+          <div class="cot-body" style="display:none;">{rows}</div>
+        </div>
     """
 
 

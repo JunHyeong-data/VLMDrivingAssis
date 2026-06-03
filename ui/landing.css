@@ -3121,7 +3121,7 @@ body:has(.dc-v3-root) main {
   border-top: 1px solid var(--line);
   padding-top: 12px;
 }
-.dc-v3-root .moment .m-cot > summary {
+.dc-v3-root .moment .m-cot > .m-cot-summary {
   display: flex; align-items: center; gap: 8px;
   list-style: none; cursor: pointer;
   font-family: 'JetBrains Mono', monospace;
@@ -3129,13 +3129,12 @@ body:has(.dc-v3-root) main {
   color: var(--muted);
   transition: color .2s var(--v3-ease);
 }
-.dc-v3-root .moment .m-cot > summary::-webkit-details-marker { display: none; }
-.dc-v3-root .moment .m-cot > summary:hover { color: var(--signal); }
+.dc-v3-root .moment .m-cot > .m-cot-summary:hover { color: var(--signal); }
 .dc-v3-root .moment .m-cot .chev {
   width: 13px; height: 13px; margin-left: auto;
   transition: transform .25s var(--v3-ease);
 }
-.dc-v3-root .moment .m-cot[open] .chev { transform: rotate(180deg); }
+.dc-v3-root .moment .m-cot.open .chev { transform: rotate(180deg); }
 .dc-v3-root .moment .m-cot .cot-body {
   display: flex; flex-direction: column; gap: 10px;
   padding-top: 12px;

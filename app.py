@@ -621,7 +621,7 @@ def _extract_event_stills(video_path: str, events) -> dict[int, str]:
     tmp = tempfile.gettempdir()
     cap = cv2.VideoCapture(video_path)
     try:
-        for ev in events[:3]:  # we only ever show 3 cards
+        for ev in events:
             cap.set(cv2.CAP_PROP_POS_FRAMES, ev.frame_idx)
             ok, frame = cap.read()
             if not ok or frame is None:
@@ -1047,7 +1047,15 @@ def _run_analysis_impl(video_path: str, analyz_meta: dict | None = None):
     yield (screen(pct=72, veh=veh_cum, ped=ped_cum, two=two_cum, risk=n_risk,
                   phase="vlm", poster_path=current_poster), gr.update())
     time.sleep(_PHASE_DWELL)  # keep "코칭 작성" readable
-    coachings = [generate_coaching(ev) for ev in events]
+    # [김두훈] video_path 추가 — vlm.py가 frame_idx로 직접 프레임을 추출하도록
+    n_events = len(events)
+    print(f"[VLM] 총 {n_events}개 이벤트 코칭 시작")
+    coachings = []
+    for i, ev in enumerate(events, 1):
+        print(f"[VLM] {i}/{n_events} — {ev.type} @ {ev.timestamp:.1f}s (frame {ev.frame_idx})")
+        coachings.append(generate_coaching(ev, video_path=video_path))
+        print(f"[VLM] {i}/{n_events} 완료")
+    print(f"[VLM] 전체 코칭 완료")
 
     # ── Phase 4a: score ──
     yield (screen(pct=80, veh=veh_cum, ped=ped_cum, two=two_cum, risk=n_risk,
