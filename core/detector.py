@@ -22,7 +22,7 @@ _WEIGHTS_DIR = Path(__file__).resolve().parent.parent / "weights"
 
 # Production model: yolo26n_best.pt (nano — fast, small, team-selected).
 # Also available for comparison/ablation:
-#   yolo26s_best.pt (small), rtdert_best.pt (RT-DETR baseline)
+#   yolo26s_best.pt (small), yolo26l_best.pt (large), rtdert_best.pt (RT-DETR baseline)
 # Switch via env: YOLO_MODEL=rtdert_best.pt
 _DEFAULT_MODEL = "yolo26n_best.pt"
 
