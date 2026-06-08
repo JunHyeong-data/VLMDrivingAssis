@@ -1050,10 +1050,12 @@ def _run_analysis_impl(video_path: str, analyz_meta: dict | None = None):
     # [김두훈] video_path 추가 — vlm.py가 frame_idx로 직접 프레임을 추출하도록
     n_events = len(events)
     print(f"[VLM] 총 {n_events}개 이벤트 코칭 시작")
+    det_by_idx = {f.frame_idx: f for f in frames}
     coachings = []
     for i, ev in enumerate(events, 1):
         print(f"[VLM] {i}/{n_events} — {ev.type} @ {ev.timestamp:.1f}s (frame {ev.frame_idx})")
-        coachings.append(generate_coaching(ev, video_path=video_path))
+        ctx = [det_by_idx[ev.frame_idx]] if ev.frame_idx in det_by_idx else None
+        coachings.append(generate_coaching(ev, video_path=video_path, context=ctx))
         print(f"[VLM] {i}/{n_events} 완료")
     print(f"[VLM] 전체 코칭 완료")
 
@@ -1068,7 +1070,6 @@ def _run_analysis_impl(video_path: str, analyz_meta: dict | None = None):
     # (render_annotated_video 가 블로킹이라 인코딩 동안은 이 화면이 유지된다.)
     yield (screen(pct=95, veh=veh_cum, ped=ped_cum, two=two_cum, risk=n_risk,
                   phase="render", poster_path=current_poster), gr.update())
-    det_by_idx = {f.frame_idx: f for f in frames}
     ev_by_idx = {ev.frame_idx: ev for ev in events}
     out_path = os.path.join(
         tempfile.gettempdir(),

@@ -5,13 +5,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Run the app (Gradio UI at http://127.0.0.1:7865)
-python app.py
+# Run the app (Gradio UI at http://127.0.0.1:7865).
+# YOLO auto-enables when ./weights/*.pt exist and ultralytics is installed.
+python app.py                 # real YOLO (if available) + mock VLM
+USE_REAL_VLM=1 python app.py  # + real Qwen2.5-VL coaching
 
-# End-to-end pipeline smoke test (generates a synthetic video, runs all 5 stages)
+# Windows launchers (pin Python 3.13, where the heavy deps live):
+#   run.bat       — real YOLO + mock VLM (team default)
+#   run_full.bat  — real YOLO + real VLM (sets USE_REAL_VLM=1, YOLO_MODEL=yolo26s_best.pt)
+
+# End-to-end pipeline smoke test (synthetic video through all 5 stages)
 python scripts/smoke_pipeline.py
 
-# Install dependencies
+# Base deps (mock mode). Real inference also needs, installed separately:
+#   pip install ultralytics lap                                    # YOLO + ByteTrack
+#   pip install transformers accelerate bitsandbytes qwen-vl-utils # VLM
+#   torch built with CUDA (e.g. a cu126 wheel)
 pip install -r requirements.txt
 ```
 
@@ -32,15 +41,15 @@ detect_video() → extract_events() → generate_coaching() → calculate_score(
 All pipeline modules exchange data through the dataclasses defined in `core/schema.py` — this is the team's shared interface contract. Do not rename fields without team coordination.
 
 ### Mock vs real models
-Two env vars gate real inference:
-- `USE_REAL_YOLO=1` → enables `core/detector._detect_real_frame()` (currently `NotImplementedError`)
-- `USE_REAL_VLM=1` → enables `core/vlm._generate_real_coaching()` (currently `NotImplementedError`)
+Both real backends are implemented and gated by env vars:
+- `USE_REAL_YOLO` — unset: auto-enable real YOLO when the selected weights file exists under `./weights/` and `ultralytics` is importable; `=1` forces on; `=0` forces mock. See `core/detector._resolve_use_real()`.
+- `USE_REAL_VLM=1` → real Qwen2.5-VL coaching (`core/vlm._generate_real_coaching()`); default uses canned coaching from `mock_data.py`.
 
-Default (`=0`) uses deterministic mock data from `mock_data.py`. The mock trajectories and coaching texts are designed to trigger all four event types.
+`mock_data.py` is deterministic and now carries `track_id`s, so the trajectory-based rules still work in mock mode.
 
-### Replacement points (team ownership)
-- `core/detector._detect_real_frame()` — owner: 이지원. Replace with YOLO26n / RT-DETR. Must return `FrameDetections` with `cls` values from `core.schema.CLASS_NAMES`.
-- `core/vlm._generate_real_coaching()` — owner: 김두훈. Replace with Qwen2.5-VL. Must return `Coaching` with `scene_description`, `scene_analysis`, `action_plan`.
+### Real model integration
+- `core/detector.py` — YOLO (default `yolo26s_best.pt`; switch via `YOLO_MODEL`, e.g. `rtdert_best.pt`). Uses `model.track(persist=True)` (**ByteTrack**) for persistent IDs across frames and fills `Detection.track_id`; `_reset_tracker()` clears state per video. Maps detector names to `core.schema.CLASS_NAMES` (9 classes). Needs `ultralytics` + `lap`. On any inference error it switches to mock for the rest of the session (keeps the demo alive).
+- `core/vlm.py` — Qwen2.5-VL-7B-Instruct, 4-bit NF4 (~6.5 GB VRAM). `max_pixels` caps vision tokens so it fits in 8 GB (without it, activations spill to shared memory → ~115 s/call instead of ~25 s). The prompt is grounded with the event's `title`/`summary` + frame object counts and an "image overrides text" safeguard; output passes through `_sanitize()` to drop occasional broken bytes (U+FFFD) from 4-bit decoding. Returns `Coaching(scene_description, scene_analysis, action_plan)`.
 
 ### JS ↔ Gradio bridge (`DC_BOOT_JS`)
 The visible custom `<button>` elements inside the HTML blobs cannot trigger Gradio events directly. `DC_BOOT_JS` (defined at the top of `app.py`) bridges them to hidden `gr.Button` instances via class selectors:
@@ -59,11 +68,17 @@ Dashcam files are often HEVC or fragmented MP4 that browsers refuse to play. `co
 
 Korean text on video frames is rendered via PIL (`_put_text_ko` in `core/overlay.py`) because `cv2.putText` only supports ASCII.
 
-### Event extraction tuning
-`core/event_extractor.py` contains named constants at the top (`_CLOSE_VEHICLE_AREA_RATIO`, `_EVENT_COOLDOWN_FRAMES`, etc.) — these are the primary knobs for adjusting event sensitivity without touching logic.
+### Event extraction (`core/event_extractor.py`)
+Trajectory-based rules over tracked detections pick the moments worth coaching (top 3 per clip). Five event types: `close_vehicle` (앞차 근접/급접근, via per-track **looming** = bbox growth rate), `cut_in` (옆차 끼어들기 — a track's center crossing from the side into the ego lane), `pedestrian_risk` (보행자 근접/횡단), `signal_change` (신호 교차로 접근 — gated on the light bbox being large/near, since lights are visible ~⅔ of city driving), `complex_scene` (혼잡 — dynamic-agent count, excludes static signs/lights).
+
+Tuning knobs are named constants at the top. Key design points:
+- `_Episode` is **time-based** (persist/clear/cooldown in *seconds* via frame timestamps), so results are independent of `sample_every` — the app detects at `sample_every=2`, and frame-counted thresholds were silently dropping brief events. Per-type timing lives in `_EPISODE_CFG`.
+- Rate signals (looming, cut-in, crossing direction) transfer across cameras; absolute thresholds (areas, counts, light height) are a **profile calibrated on a real Korean dashcam clip** — re-tune for a very different camera/FOV.
+- Selection: `_suppress_neighbors()` (temporal NMS, one event per ~6 s) → `_cap_events()` (type-diversity first, then severity/penalty, `_MAX_EVENTS = 3`).
+- What we deliberately do NOT claim (no IMU/lane/speed/light-color): 급제동, 차선 이탈, 과속, 신호 위반. The landing copy was scrubbed of these.
 
 ### Scoring
-Each of the 5 categories (`signal`, `lane`, `pedestrian`, `speed`, `distance`) starts at 100 and loses `event.penalty` per violation, capped at `_MAX_CATEGORY_DROP = 40`. Grade thresholds: A ≥ 90, B ≥ 80, C ≥ 70, D < 70.
+Each of the 4 categories (`signal`, `pedestrian`, `speed`, `distance`) starts at 100 and loses `event.penalty` per violation, capped at `_MAX_CATEGORY_DROP = 40`. Grade thresholds: A ≥ 90, B ≥ 80, C ≥ 70, D < 70. (No `lane` category — there is no lane detection, so it can't be scored honestly.)
 
 ## Coding Guidelines
 

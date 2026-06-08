@@ -23,6 +23,7 @@ class Detection:
     cls: str                       # one of CLASS_NAMES
     bbox: tuple[int, int, int, int]  # (x1, y1, x2, y2) in pixel coords
     confidence: float              # 0.0 ~ 1.0
+    track_id: int | None = None    # persistent ID across frames (ByteTrack); None if untracked
 
 
 @dataclass
@@ -73,10 +74,10 @@ class ScoreReport:
     focus_area: CategoryScore | None  # weakest category (or None if all >= 90)
 
 
-# Five scoring categories — change here to retune the rubric
+# Scoring categories — change here to retune the rubric.
+# (No "lane" category: we don't do lane detection, so it can't be scored honestly.)
 SCORE_CATEGORY_DEFS = [
     ("signal",     "Signal awareness",  "신호 인지",   "🚦"),
-    ("lane",       "Lane discipline",   "차선 준수",   "🛣️"),
     ("pedestrian", "Pedestrian caution", "보행자 주의", "🚸"),
     ("speed",      "Speed management",  "속도 관리",   "⚡"),
     ("distance",   "Safe distance",     "안전거리",    "🚗"),

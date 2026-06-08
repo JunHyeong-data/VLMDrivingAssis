@@ -30,14 +30,15 @@ _MOCK_TRACKS = [
 def mock_detect(frame_idx: int, fps: float, width: int, height: int) -> FrameDetections:
     """Generate plausible bounding boxes for one frame."""
     dets: list[Detection] = []
-    for cls, base, drift, conf in _MOCK_TRACKS:
+    for tid, (cls, base, drift, conf) in enumerate(_MOCK_TRACKS):
         x1 = max(0, min(width - 10, base[0] + drift[0] * frame_idx))
         y1 = max(0, min(height - 10, base[1] + drift[1] * frame_idx))
         x2 = max(x1 + 10, min(width, base[2] + drift[2] * frame_idx))
         y2 = max(y1 + 10, min(height, base[3] + drift[3] * frame_idx))
         # Small confidence jitter
         c = max(0.3, min(0.99, conf + random.uniform(-0.04, 0.04)))
-        dets.append(Detection(cls=cls, bbox=(int(x1), int(y1), int(x2), int(y2)), confidence=c))
+        dets.append(Detection(cls=cls, bbox=(int(x1), int(y1), int(x2), int(y2)),
+                              confidence=c, track_id=tid))
 
     # Add a pedestrian that walks into the road around frame 90 (event trigger)
     if 90 <= frame_idx <= 140:
@@ -46,6 +47,7 @@ def mock_detect(frame_idx: int, fps: float, width: int, height: int) -> FrameDet
             cls="person",
             bbox=(crossing_x, 380, crossing_x + 60, 540),
             confidence=0.91,
+            track_id=100,
         ))
 
     return FrameDetections(

@@ -1,19 +1,19 @@
 @echo off
-REM ============================================================
-REM  DrivingAssis - FULL mode (personal launcher, 이지원)
-REM  real YOLO + real VLM (Qwen2.5-VL-7B, 4-bit NF4).
-REM
-REM  팀 공용 run.bat = real YOLO + mock VLM (고정).
-REM  이 파일만 USE_REAL_VLM=1 로 VLM 까지 실제 추론.
-REM
-REM  처음 실행 시 Qwen2.5-VL-7B (~16GB) 자동 다운로드됨.
-REM  모델 바꾸려면:  set YOLO_MODEL=yolo26s_best.pt  후 실행.
-REM ============================================================
 chcp 65001 >NUL
 cd /d "%~dp0"
 
+REM ============================================================
+REM  DrivingAssis - FULL mode (personal launcher)
+REM  real YOLO + real VLM (Qwen2.5-VL-7B, 4-bit NF4).
+REM  Team-shared run.bat = real YOLO + mock VLM.
+REM  This file sets USE_REAL_VLM=1 to enable real VLM coaching.
+REM  First run downloads Qwen2.5-VL-7B (~16GB) automatically.
+REM  Change model: set YOLO_MODEL=yolo26s_best.pt before running.
+REM  (Comments kept ASCII so they never get mis-parsed under cp949.)
+REM ============================================================
+
 set "USE_REAL_VLM=1"
-if "%YOLO_MODEL%"=="" set "YOLO_MODEL=yolo26n_best.pt"
+if "%YOLO_MODEL%"=="" set "YOLO_MODEL=yolo26s_best.pt"
 
 echo ----------------------------------------------
 echo  DrivingAssis  [FULL: real YOLO + real VLM]
