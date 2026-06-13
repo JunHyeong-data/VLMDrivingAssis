@@ -142,7 +142,7 @@ def team_screen_html() -> str:
         <span class="af-num">02 · Event</span>
         <div class="af-ic"><svg viewBox="0 0 24 24"><line x1="3" y1="20" x2="21" y2="20"/><rect x="5" y="12" width="3" height="8"/><rect x="10" y="6" width="3" height="14"/><rect x="15" y="14" width="3" height="6"/></svg></div>
         <h3>이벤트 추출</h3>
-        <p>검출 결과를 규칙으로 읽어 급제동·차선 이탈 같은 위험 구간을 가려냅니다.</p>
+        <p>검출 결과를 규칙으로 읽어 앞차 근접·보행자·복잡 교차로 같은 위험 구간을 가려냅니다.</p>
         <div class="af-tag">Rule-based</div>
       </div>
       <div class="af-step">
@@ -253,7 +253,7 @@ def faq_screen_html() -> str:
           세 단계를 거칩니다.
           <ul class="a-steps">
             <li><span class="st-n">①</span><span><b>YOLO 검출</b> — 차량·보행자·신호를 프레임 단위로 찾아냅니다.</span></li>
-            <li><span class="st-n">②</span><span><b>이벤트 추출</b> — 룰 기반으로 급제동·차선&nbsp;이탈·차간거리&nbsp;부족 같은 위험 이벤트를 가려냅니다.</span></li>
+            <li><span class="st-n">②</span><span><b>이벤트 추출</b> — 룰 기반으로 앞차&nbsp;근접·보행자·신호등·복잡&nbsp;교차로 같은 위험 이벤트를 가려냅니다.</span></li>
             <li><span class="st-n">③</span><span><b>VLM 코칭</b> — 그 순간을 <span class="sig">상황 → 위험 → 행동</span> 3단계로 해석해 코칭 문장을 만듭니다.</span></li>
           </ul>
         </div>
@@ -285,7 +285,7 @@ def faq_screen_html() -> str:
       <div class="a-wrap">
         <div class="a-rail"></div>
         <p class="a-text">
-          신호·차선·보행자·속도·안전거리 <b>5개 카테고리</b>가 각 100점에서 시작하고,
+          신호·보행자·속도·안전거리 <b>4개 카테고리</b>가 각 100점에서 시작하고,
           위험 이벤트마다 감점됩니다. 카테고리별 <b>최대 감점 폭은 제한</b>돼,
           한 종류의 실수가 점수를 완전히 무너뜨리지 않도록 했어요.
         </p>
@@ -301,8 +301,9 @@ def faq_screen_html() -> str:
       <div class="a-wrap">
         <div class="a-rail"></div>
         <p class="a-text">
-          현재는 <b>프레임 단위 검출</b> 기반입니다. 같은 객체에 ID를 부여하는 추적(ByteTrack 등)은
-          로드맵에 있으며, 지금은 <span class="sig">추적된 척하는 가짜 ID를 보여주지 않습니다.</span>
+          네. <b>ByteTrack</b>으로 같은 객체에 ID를 부여해 프레임 간 추적합니다. 이 궤적으로
+          <span class="sig">앞차 급접근(접근 속도)·옆차 끼어들기·보행자 이동 방향</span> 같은
+          모션 기반 이벤트를 검출합니다.
         </p>
       </div>
     </details>
@@ -391,7 +392,7 @@ def _hero_section() -> str:
           </h1>
         </div>
         <p class="hero-sub" data-reveal style="--rd:500ms">
-          블랙박스 영상을 올리면 BackMirror가 급제동·차선 이탈·차간거리 부족 같은
+          블랙박스 영상을 올리면 BackMirror가 앞차 근접·보행자·신호등·복잡 교차로 같은
           위험 이벤트를 자동으로 찾아내고, 그 순간의 운전 습관을 한 페이지 리포트로 정리합니다.
         </p>
       </div>
@@ -424,8 +425,8 @@ def _hero_section() -> str:
           </svg>
 
           <div class="frame-ai-hud">
-            <div class="hud-pill"><span class="dot"></span>LANE <b>STABLE</b></div>
-            <div class="hud-pill">LEAD <b>14.2m</b></div>
+            <div class="hud-pill"><span class="dot"></span>AHEAD <b>29%</b></div>
+            <div class="hud-pill">OBJECTS <b>5</b></div>
             <div class="hud-pill risk"><span class="dot"></span>RISK <b>LOW</b></div>
           </div>
         </div>
@@ -437,7 +438,7 @@ def _hero_section() -> str:
         <div class="hero-stat" data-reveal style="--rd:600ms">
           <div class="label" style="margin-bottom:14px">01 · Detect</div>
           <div class="d" style="font-size:15px;color:rgba(255,255,255,0.86);max-width:32ch">
-            급제동·차선 이탈·차간거리 부족 같은 위험 이벤트를 영상에서 자동으로 찾아냅니다.
+            앞차 근접·보행자·신호등·복잡 교차로 같은 위험 이벤트를 영상에서 자동으로 찾아냅니다.
           </div>
         </div>
         <div class="hero-stat" data-reveal style="--rd:720ms">
@@ -471,7 +472,7 @@ def _upload_section() -> str:
             처리되고, 분석이 끝나면 주요 이벤트·근거 클립·코칭이 한 페이지로 정리됩니다.</p>
           <ul class="upload-bullets">
             <li><span><b>MP4 · MOV · HEVC</b> 주요 블랙박스 포맷 그대로 올리면 됩니다.</span></li>
-            <li><span><b>이벤트 자동 검출</b> 급제동·차선 이탈·차간거리 부족·신호 미준수 등.</span></li>
+            <li><span><b>이벤트 자동 검출</b> 앞차 근접·보행자·신호등·복잡 교차로 등.</span></li>
           </ul>
         </div>
 
@@ -519,60 +520,57 @@ def _see_section() -> str:
 
       <div class="see-grid">
         <article class="tile" data-reveal>
-          <img alt="스티어링 POV — 운전자 조작 추적"
+          <img alt="전방 객체 검출 — 차량·보행자·신호등"
             src="https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&w=1600&q=80"/>
           <div class="tile-overlay">
             <svg viewBox="0 0 400 500" preserveAspectRatio="none">
               <rect class="bbox" x="120" y="260" width="170" height="110"/>
-              <text x="120" y="254">HANDS · 0.96</text>
+              <text x="120" y="254">VEHICLE · 0.96</text>
               <rect class="bbox amber" x="240" y="180" width="60" height="40"/>
-              <text x="240" y="174" style="fill:var(--amber)">GAZE · FORWARD</text>
+              <text x="240" y="174" style="fill:var(--amber)">PERSON · 0.88</text>
             </svg>
           </div>
           <div class="tile-shade"></div>
           <div class="tile-body">
             <div class="tile-num">CAPABILITY · 01</div>
-            <h3>운전자의 시선과 조작을 함께 본다</h3>
-            <p>스티어링 입력의 미세한 진동·시선 방향·페달 압력을 시간축에 정렬합니다.</p>
+            <h3>차량·보행자·신호등을 프레임마다 검출</h3>
+            <p>차량·버스·트럭·보행자·신호등 등 9개 클래스를 프레임 단위로 검출합니다.</p>
           </div>
         </article>
 
         <article class="tile" data-reveal style="--rd:120ms">
-          <img alt="앞차 추적 — 전방 차량 검출"
+          <img alt="앞차 근접 — 전방 차량 화면 점유율"
             src="https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1600&q=80"/>
           <div class="tile-overlay">
             <svg viewBox="0 0 400 500" preserveAspectRatio="none">
               <rect class="bbox" x="110" y="230" width="190" height="130"/>
-              <text x="110" y="224">VEHICLE · 0.98 · 14.2m</text>
-              <path class="lane" d="M40,500 C120,380 180,300 200,240" style="stroke-dasharray:8 6"/>
-              <path class="lane" d="M380,500 C320,380 240,300 220,240" style="stroke-dasharray:8 6"/>
+              <text x="110" y="224">VEHICLE · 0.98 · 29%</text>
             </svg>
           </div>
           <div class="tile-shade"></div>
           <div class="tile-body">
             <div class="tile-num">CAPABILITY · 02</div>
-            <h3>앞차와의 거리·상대 속도를 본다</h3>
-            <p>전방 차량을 프레임마다 추적해 차간거리·상대 가감속을 0.1초 단위로 계산합니다.</p>
+            <h3>앞차가 얼마나 가까운지</h3>
+            <p>검출된 프레임으로 근접 정도를 가늠합니다.</p>
           </div>
         </article>
 
         <article class="tile" data-reveal style="--rd:240ms">
-          <img alt="차선·도로 인지 — 다양한 환경"
+          <img alt="복잡 교차로 — 다수 객체 동시 검출"
             src="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1600&q=80"/>
           <div class="tile-overlay">
             <svg viewBox="0 0 400 500" preserveAspectRatio="none">
-              <path class="lane" d="M50,500 C140,360 200,270 215,200"/>
-              <path class="lane" d="M350,500 C280,360 230,270 225,200"/>
-              <ellipse cx="220" cy="260" rx="140" ry="60"
-                style="fill:rgba(0,229,154,0.08); stroke:none"/>
-              <text x="160" y="195">LANE · STABLE</text>
+              <rect class="bbox" x="60" y="250" width="90" height="80"/>
+              <rect class="bbox" x="175" y="240" width="80" height="90"/>
+              <rect class="bbox amber" x="280" y="260" width="70" height="70"/>
+              <text x="150" y="200">OBJECTS · 12</text>
             </svg>
           </div>
           <div class="tile-shade"></div>
           <div class="tile-body">
             <div class="tile-num">CAPABILITY · 03</div>
-            <h3>차선과 도로 형상을 끊김 없이 인지한다</h3>
-            <p>차선 마킹이 흐릿하거나 비대칭인 환경에서도 도로 형상을 안정적으로 추정합니다.</p>
+            <h3>복잡한 교차로 상황을 가려낸다</h3>
+            <p>한 화면에 차량·보행자가 동시에 많아지는 복잡 구간을 자동으로 표시합니다.</p>
           </div>
         </article>
       </div>
@@ -603,7 +601,7 @@ def _report_section() -> str:
             <span class="rc-id">REPORT · #DA-20260524-2419</span>
           </div>
           <div class="rc-head-right">
-            <span>DURATION <b>12:34</b></span>
+            <span>DURATION <b>01:30</b></span>
             <span>EVENTS <b>3</b></span>
             <span>SCORE <b style="color:var(--signal)">82</b></span>
           </div>
@@ -613,75 +611,70 @@ def _report_section() -> str:
           <div class="rc-timeline-label">
             <h4>Timeline · 검출된 의사결정</h4>
             <div class="rc-tl-ticks" style="width:280px">
-              <span>00:00</span><span>06:17</span><span>12:34</span>
+              <span>00:00</span><span>00:45</span><span>01:30</span>
             </div>
           </div>
           <div class="rc-tl">
             <div class="rc-tl-bar" style="left:0; width:18%"></div>
             <div class="rc-tl-bar" style="left:32%; width:14%"></div>
             <div class="rc-tl-bar" style="left:64%; width:22%"></div>
-            <div class="rc-tl-marker" data-l="02:14 · LANE CHANGE" style="left:18%"></div>
-            <div class="rc-tl-marker amber" data-l="06:47 · CLOSE GAP" style="left:46%"></div>
-            <div class="rc-tl-marker risk" data-l="10:32 · LATE BRAKE" style="left:78%"></div>
+            <div class="rc-tl-marker amber" data-l="00:21 · 혼잡 구간" style="left:23%"></div>
+            <div class="rc-tl-marker amber" data-l="00:34 · 앞차 근접" style="left:38%"></div>
+            <div class="rc-tl-marker risk" data-l="00:54 · 옆차 끼어들기" style="left:60%"></div>
           </div>
         </div>
 
         <div class="rc-moments">
           <article class="km">
             <div class="km-img">
-              <img alt="02:14 차선 변경"
+              <img alt="00:21 혼잡 구간"
                 src="/gradio_api/file=assets/sample_lane.jpg"/>
               <svg class="km-overlay" viewBox="0 0 400 225" preserveAspectRatio="none">
-                <rect x="168" y="96" width="108" height="70"/>
-                <text x="168" y="90">HANDS · 0.96</text>
-                <rect x="220" y="50" width="56" height="30"/>
-                <text x="220" y="44">GAZE · FWD</text>
+                <rect x="60" y="110" width="86" height="58"/>
+                <rect x="180" y="104" width="76" height="64"/>
+                <text x="60" y="100">OBJECTS · 12</text>
               </svg>
-              <span class="km-tc mono">02:14</span>
-              <span class="km-badge mono">GOOD</span>
+              <span class="km-tc mono">00:21</span>
+              <span class="km-badge amber mono">CAUTION</span>
             </div>
-            <div class="km-cat">LANE CHANGE · LEFT</div>
-            <h4>충분한 거리에서 한 번에 들어갔습니다.</h4>
-            <p>차선 변경 1.6초 전부터 사이드미러를 확인했고, 깜빡이를 1.2초 유지한 뒤 진입했습니다.</p>
-            <div class="km-coach"><b>코칭</b><span>같은 패턴을 야간에도 유지해 보세요. 평균 1.4초 → 1.6초로 안정적.</span></div>
+            <div class="km-cat">혼잡 구간 진입</div>
+            <h4>한 화면에 차량·보행자가 다수 존재합니다.</h4>
+            <p>객체가 동시에 많아지는 구간은 주의가 분산되기 쉽습니다.</p>
+            <div class="km-coach"><b>코칭</b><span>교차로 진입 전 충분히 감속해 판단 시간을 확보하세요.</span></div>
           </article>
 
           <article class="km">
             <div class="km-img">
-              <img alt="06:47 차간거리"
+              <img alt="00:34 앞차 근접"
                 src="/gradio_api/file=assets/sample_gap.jpg"/>
               <svg class="km-overlay" viewBox="0 0 400 225" preserveAspectRatio="none">
                 <rect class="amber" x="130" y="94" width="140" height="82"/>
-                <text class="amber" x="130" y="88">VEHICLE · 1.4s</text>
-                <rect class="amber" x="300" y="180" width="70" height="22"/>
-                <text class="amber" x="308" y="194">GAP · LOW</text>
+                <text class="amber" x="130" y="88">VEHICLE · 24%</text>
               </svg>
-              <span class="km-tc mono">06:47</span>
+              <span class="km-tc mono">00:34</span>
               <span class="km-badge amber mono">REVIEW</span>
             </div>
-            <div class="km-cat">FOLLOWING DISTANCE</div>
-            <h4>앞차와의 간격이 1.4초로 좁아졌습니다.</h4>
-            <p>고속도로 권장 간격은 2.0초입니다. 차간거리 부족 상태가 9초간 지속됐습니다.</p>
-            <div class="km-coach"><b>코칭</b><span>오른발을 액셀에서 떼는 것만으로 0.6초가 다시 확보됩니다.</span></div>
+            <div class="km-cat">앞차 근접</div>
+            <h4>전방 차량과의 거리가 가까워졌습니다.</h4>
+            <p>전방 차량과의 차간거리가 좁을수록 사고 위험이 높아집니다.</p>
+            <div class="km-coach"><b>코칭</b><span>가속을 멈추고 앞차와의 간격을 회복하세요.</span></div>
           </article>
 
           <article class="km">
             <div class="km-img">
-              <img alt="10:32 급제동"
+              <img alt="00:54 옆차 끼어들기"
                 src="/gradio_api/file=assets/sample_brake.jpg"/>
               <svg class="km-overlay" viewBox="0 0 400 225" preserveAspectRatio="none">
                 <rect class="risk" x="150" y="86" width="120" height="92"/>
-                <text class="risk" x="150" y="80">VEHICLE · BRAKE</text>
-                <rect class="risk" x="280" y="180" width="80" height="22"/>
-                <text class="risk" x="288" y="194">DECEL · -0.42g</text>
+                <text class="risk" x="150" y="80">VEHICLE · CUT-IN</text>
               </svg>
-              <span class="km-tc mono">10:32</span>
+              <span class="km-tc mono">00:54</span>
               <span class="km-badge risk mono">RISK</span>
             </div>
-            <div class="km-cat">LATE BRAKING</div>
-            <h4>0.7초 늦은 제동, –0.42g.</h4>
-            <p>30초 전 앞 차량의 브레이크등이 두 번 점멸했지만 페달 입력은 7초 뒤에 시작됐습니다.</p>
-            <div class="km-coach"><b>코칭</b><span>앞차의 두 번째 브레이크등이 곧 제동의 신호입니다. 미리 시선을 두세요.</span></div>
+            <div class="km-cat">옆차 끼어들기</div>
+            <h4>옆 차선 차량이 앞으로 끼어들었습니다.</h4>
+            <p>끼어드는 차량은 차간거리를 급격히 좁혀 추돌 위험을 높입니다.</p>
+            <div class="km-coach"><b>코칭</b><span>속도를 줄여 끼어든 차량과 안전거리를 확보하세요.</span></div>
           </article>
         </div>
 
@@ -713,18 +706,18 @@ def _numbers_section() -> str:
       <div class="numbers-grid">
         <div class="num" data-reveal>
           <div class="l">Event · 01</div>
-          <div class="v" style="{big}">차선 이탈</div>
-          <div class="d">방향지시등 없이 차선을 넘어가거나, 차선 안에서 좌우 흔들림이 큰 구간을 표시합니다.</div>
+          <div class="v" style="{big}">앞차 근접</div>
+          <div class="d">전방 차량 박스가 화면에서 차지하는 비율이 커져 차간거리가 좁아진 구간을 표시합니다.</div>
         </div>
         <div class="num" data-reveal style="--rd:120ms">
           <div class="l">Event · 02</div>
-          <div class="v" style="{big}">차간거리 부족</div>
-          <div class="d">앞 차량과의 시간 간격이 권장 수준 아래로 떨어져 지속된 구간을 따로 모아 보여드립니다.</div>
+          <div class="v" style="{big}">보행자 주의</div>
+          <div class="d">보행자나 라이더가 도로 쪽에 가깝게 잡힌 구간을 따로 모아 보여드립니다.</div>
         </div>
         <div class="num" data-reveal style="--rd:240ms">
           <div class="l">Event · 03</div>
-          <div class="v" style="{big}">신호·정지선</div>
-          <div class="d">신호 전환 시점의 정지·통과 결정과 정지선 위치를 함께 기록합니다.</div>
+          <div class="v" style="{big}">복잡 교차로</div>
+          <div class="d">한 화면에 차량·보행자가 동시에 많아져 주의가 분산되기 쉬운 구간을 기록합니다.</div>
         </div>
       </div>
     </section>
@@ -1616,12 +1609,12 @@ def _moments_section_html(events, coachings, event_stills, duration) -> str:
 
 # Korean long name → short label (design uses condensed names in the rail)
 _CAT_SHORT = {
-    "신호 인지": "신호", "차선 준수": "차선", "보행자 주의": "보행자",
+    "신호 인지": "신호", "보행자 주의": "보행자",
     "속도 관리": "속도", "안전거리": "안전거리",
 }
 # Korean name → icon key (matches _CATEGORY_ICONS below)
 _CAT_ICON_KEY = {
-    "신호 인지": "signal", "차선 준수": "lane",
+    "신호 인지": "signal",
     "보행자 주의": "pedestrian", "속도 관리": "speed",
     "안전거리": "distance",
 }
@@ -1629,9 +1622,6 @@ _CATEGORY_ICONS = {
     "signal": ('<svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/>'
                '<circle cx="12" cy="8" r="1.5"/><circle cx="12" cy="13" r="1.5"/>'
                '<circle cx="12" cy="18" r="1.5"/></svg>'),
-    "lane": ('<svg viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="21"/>'
-             '<line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="10" x2="12" y2="14"/>'
-             '<line x1="12" y1="18" x2="12" y2="21"/><line x1="18" y1="3" x2="18" y2="21"/></svg>'),
     "pedestrian": ('<svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2"/>'
                    '<path d="M12 7 v8 M12 15 l-3 6 M12 15 l3 6 M9 10 l-3 -1 M15 10 l3 -1"/></svg>'),
     "speed": ('<svg viewBox="0 0 24 24"><path d="M4 14 a8 8 0 0 1 16 0"/>'
@@ -2113,23 +2103,20 @@ def _spine_sparkline_svg(scores: list[int]) -> str:
 
 # Korean short labels for focus_area (matches RESULTS breakdown short names).
 _HISTORY_CAT_SHORT = {
-    "신호 인지": "신호", "차선 준수": "차선", "보행자 주의": "보행자",
+    "신호 인지": "신호", "보행자 주의": "보행자",
     "속도 관리": "속도", "안전거리": "안전거리",
 }
 _HISTORY_CAT_KEY = {
-    "신호 인지": "signal", "차선 준수": "lane",
+    "신호 인지": "signal",
     "보행자 주의": "pedestrian", "속도 관리": "speed",
     "안전거리": "distance",
 }
-# Same 5 icons as RESULTS — kept here as a small standalone copy so the
+# Same icons as RESULTS — kept here as a small standalone copy so the
 # HISTORY screen has no cross-section dependency on the RESULTS helpers.
 _HISTORY_CAT_ICONS = {
     "signal": ('<svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2"/>'
                '<circle cx="12" cy="8" r="1.5"/><circle cx="12" cy="13" r="1.5"/>'
                '<circle cx="12" cy="18" r="1.5"/></svg>'),
-    "lane": ('<svg viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="21"/>'
-             '<line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="10" x2="12" y2="14"/>'
-             '<line x1="12" y1="18" x2="12" y2="21"/><line x1="18" y1="3" x2="18" y2="21"/></svg>'),
     "pedestrian": ('<svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2"/>'
                    '<path d="M12 7 v8 M12 15 l-3 6 M12 15 l3 6 M9 10 l-3 -1 M15 10 l3 -1"/></svg>'),
     "speed": ('<svg viewBox="0 0 24 24"><path d="M4 14 a8 8 0 0 1 16 0"/>'

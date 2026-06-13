@@ -1,13 +1,15 @@
 @echo off
-REM ============================================================
-REM  BackMirror 실행 (Windows)
-REM  반드시 파이썬 3.13 으로 띄웁니다 — ultralytics / torch 가
-REM  설치된 환경이라 real YOLO26n 검출이 동작합니다.
-REM
-REM  파이썬 3.14 등 ultralytics 가 없는 환경으로 app.py 를 직접
-REM  실행하면 검출이 mock 으로 떨어집니다(콘솔에
-REM  "[detector] ultralytics not installed" 경고가 뜸).
-REM  py 런처가 3.13 을 골라 그 문제를 막아줍니다.
-REM ============================================================
+chcp 65001 >NUL
 cd /d "%~dp0"
+
+REM ============================================================
+REM  BackMirror launcher (Windows)
+REM  Runs with Python 3.13 on purpose: ultralytics / torch are
+REM  installed there, so real YOLO detection works.
+REM  Launching app.py with a Python that lacks ultralytics (e.g.
+REM  3.14) silently falls back to the mock detector ("[detector]
+REM  ultralytics not installed"). The py launcher pins 3.13.
+REM  (Comments kept ASCII so they never get mis-parsed under cp949.)
+REM ============================================================
+
 py -3.13 app.py

@@ -26,24 +26,33 @@ _model = None
 _processor = None
 _MODEL_ID = "Qwen/Qwen2.5-VL-7B-Instruct"
 
+# 비전 토큰 상한 — Qwen2.5-VL은 입력 해상도에 비례해 비전 토큰을 생성하며
+# (28x28 패치 = 토큰 1개), 큰 블랙박스 프레임은 토큰 폭증 → 활성화 메모리 폭증 →
+# 8GB VRAM 초과 시 공유 메모리로 스필되어 추론이 수십 초로 느려진다.
+# max_pixels로 토큰 수를 ~512개로 제한해 VRAM 안에 들어오게 하고 실시간성을 확보한다.
+_VLM_MAX_PIXELS = 512 * 28 * 28   # ≈ 512 비전 토큰
+_VLM_MIN_PIXELS = 64 * 28 * 28
+
 _EVENT_CONTEXT = {
-    "close_vehicle":   "전방 차량과의 거리가 위험 수준으로 좁혀진 상황",
-    "pedestrian_risk": "보행자가 차도 방향으로 이동 중인 상황",
-    "signal_change":   "교차로 신호등이 전환되는 상황",
-    "complex_scene":   "여러 차량·보행자가 동시에 등장한 복잡한 교차로 상황",
+    "close_vehicle":   "전방 자차 차선의 차량과 거리가 좁혀진 상황",
+    "cut_in":          "옆 차선 차량이 자차 앞으로 끼어든 상황",
+    "pedestrian_risk": "보행자가 도로 가까이에 있는 상황",
+    "signal_change":   "전방에 신호등이 있는 교차로에 접근하는 상황",
+    "complex_scene":   "여러 차량·보행자가 동시에 등장한 혼잡한 상황",
 }
 
 _SEVERITY_KO = {"danger": "위험", "caution": "주의", "safe": "안전"}
 
 _SYSTEM_PROMPT = """\
-당신은 초보운전자를 위한 주행 코칭 AI입니다. 블랙박스 프레임을 분석하여 DriveVLM 방식의 3단계 코칭을 작성합니다.
+당신은 주행 코칭 AI입니다. 블랙박스 프레임을 분석하여 DriveVLM 방식의 3단계 코칭을 작성합니다.
 반드시 아래 형식을 정확히 지켜 한국어로만 답변하세요. 형식 외의 내용은 출력하지 마세요.
+각 항목은 핵심만 담아 간결하게 쓰고, 같은 표현을 반복하지 마세요.
 
 [상황묘사]
-(2~3문장으로 화면에 보이는 도로 상황을 객관적으로 묘사)
+(2문장으로 화면에 보이는 도로 상황을 객관적으로 묘사)
 
 [위험분석]
-(초보운전자 관점에서 위험 요소와 사고 가능성을 2~3문장으로 분석)
+(운전자 관점에서 위험 요소와 사고 가능성을 2문장으로 분석)
 
 [행동제안]
 (운전자가 즉시 취해야 할 행동을 1) 2) 3) 형식으로 3단계 제안)"""
@@ -73,7 +82,11 @@ def _load_model():
         quantization_config=bnb_config,
         device_map="auto",
     )
-    _processor = AutoProcessor.from_pretrained(_MODEL_ID)
+    _processor = AutoProcessor.from_pretrained(
+        _MODEL_ID,
+        min_pixels=_VLM_MIN_PIXELS,
+        max_pixels=_VLM_MAX_PIXELS,
+    )
 
 
 def _bgr_to_pil(frame_bgr: np.ndarray) -> Image.Image:
@@ -86,12 +99,15 @@ def _build_user_text(event: Event, context: list[FrameDetections]) -> str:
     ctx_desc = _EVENT_CONTEXT.get(event.type, event.title)
     severity = _SEVERITY_KO.get(event.severity, event.severity)
 
+    # 룰이 계산한 구체 정보(점유율·접근 속도·끼어들기 방향 등)를 그대로 전달해
+    # 코칭이 제네릭해지지 않게 한다.
     lines = [
-        f"감지된 이벤트: {ctx_desc}",
+        f"감지 이벤트: {event.title} ({ctx_desc})",
+        f"세부 정보: {event.summary}",
         f"위험도: {severity} | 발생 시각: {event.timestamp:.1f}초",
     ]
 
-    # 주변 프레임에서 객체 정보 추출 (중간 프레임 기준)
+    # 이벤트 프레임의 객체 구성 (제공된 경우)
     if context:
         mid = context[len(context) // 2]
         cls_counts: dict[str, int] = {}
@@ -99,9 +115,11 @@ def _build_user_text(event: Event, context: list[FrameDetections]) -> str:
             cls_counts[d.cls] = cls_counts.get(d.cls, 0) + 1
         if cls_counts:
             obj_str = ", ".join(f"{cls} {n}대" for cls, n in cls_counts.items())
-            lines.append(f"탐지된 객체: {obj_str}")
+            lines.append(f"이 프레임의 탐지 객체: {obj_str}")
 
-    lines.append("\n위 정보를 참고하여 이 블랙박스 프레임을 분석하세요.")
+    # 자동 감지는 틀릴 수 있으므로 프레임을 최종 근거로 삼게 한다(룰 오발화 방어).
+    lines.append("위 정보는 자동 감지 결과이며, 프레임에서 실제로 보이는 것과 다르면 프레임을 우선하세요.")
+    lines.append("이 블랙박스 프레임을 분석해 코칭하세요.")
     return "\n".join(lines)
 
 
@@ -120,6 +138,20 @@ def _build_messages(
         {"role": "system", "content": _SYSTEM_PROMPT},
         {"role": "user", "content": user_content},
     ]
+
+
+def _sanitize(text: str) -> str:
+    """Drop broken bytes from the model output.
+
+    4-bit greedy decoding occasionally emits an invalid UTF-8 byte sequence
+    (e.g. "녹색" → "신호등이 �색일"), which surfaces as U+FFFD replacement chars in
+    the report. Strip those and any stray control chars (keep newlines) so the
+    coaching text is always clean.
+    """
+    text = text.replace("�", "")
+    text = "".join(ch for ch in text if ch == "\n" or ch >= " ")
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    return text.strip()
 
 
 def _parse_sections(raw: str) -> tuple[str, str, str]:
@@ -207,7 +239,7 @@ def _generate_real_coaching(
         trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
     )[0]
 
-    scene_description, scene_analysis, action_plan = _parse_sections(raw)
+    scene_description, scene_analysis, action_plan = _parse_sections(_sanitize(raw))
     return Coaching(
         event=event,
         scene_description=scene_description,

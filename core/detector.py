@@ -3,6 +3,10 @@
 REPLACEMENT POINT (이지원):
   Real YOLO auto-enables when a weights file exists under ./weights/.
   Override with USE_REAL_YOLO=0 (force mock) or YOLO_MODEL=<filename>.
+
+Uses ByteTrack (model.track) for persistent track IDs across frames — the event
+rules need trajectories. Real tracking needs: `pip install ultralytics lap`
+(ultralytics will otherwise auto-download `lap` on first run).
 """
 from __future__ import annotations
 
@@ -22,9 +26,9 @@ _WEIGHTS_DIR = Path(__file__).resolve().parent.parent / "weights"
 
 # Production model: yolo26n_best.pt (nano — fast, small, team-selected).
 # Also available for comparison/ablation:
-#   yolo26s_best.pt (small), rtdert_best.pt (RT-DETR baseline)
+#   yolo26s_best.pt (small), yolo26l_best.pt (large), rtdert_best.pt (RT-DETR baseline)
 # Switch via env: YOLO_MODEL=rtdert_best.pt
-_DEFAULT_MODEL = "yolo26n_best.pt"
+_DEFAULT_MODEL = "yolo26s_best.pt"
 
 # Memoize the backend decision so the import check and the one-time warning
 # only happen once per process.
@@ -77,6 +81,21 @@ def _load_model():
     return _model
 
 
+def _reset_tracker() -> None:
+    """Clear ByteTrack state so each video starts with fresh track IDs.
+
+    The YOLO model is a process-wide singleton, so without this the tracker
+    would carry IDs over from a previously analyzed video.
+    """
+    if _model is None:
+        return
+    predictor = getattr(_model, "predictor", None)
+    trackers = getattr(predictor, "trackers", None) if predictor is not None else None
+    if trackers:
+        for t in trackers:
+            t.reset()
+
+
 def detect_video_stream(
     video_path: str,
     sample_every: int = 1,
@@ -99,6 +118,10 @@ def detect_video_stream(
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     results: list[FrameDetections] = []
+
+    # Fresh track IDs for this video (model is a singleton; tracker state persists).
+    if _resolve_use_real():
+        _reset_tracker()
 
     frame_idx = 0
     try:
@@ -171,7 +194,9 @@ def _detect_real_frame(frame, frame_idx: int, fps: float, width: int, height: in
     global _use_real_cached
     try:
         model = _load_model()
-        results = model(frame, verbose=False)[0]
+        # track() (ByteTrack) gives persistent IDs across frames; persist=True
+        # keeps tracker state between these per-frame calls within one video.
+        results = model.track(frame, persist=True, verbose=False)[0]
     except Exception as e:
         print(f"[detector] real YOLO failed ({type(e).__name__}: {e}) — "
               f"switching to mock for the rest of this session.")
@@ -189,6 +214,7 @@ def _detect_real_frame(frame, frame_idx: int, fps: float, width: int, height: in
             cls=cls_name,
             bbox=(int(x1), int(y1), int(x2), int(y2)),
             confidence=float(box.conf),
+            track_id=int(box.id.item()) if box.id is not None else None,
         ))
 
     return FrameDetections(
