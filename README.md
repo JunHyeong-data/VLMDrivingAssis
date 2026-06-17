@@ -14,8 +14,6 @@ YOLO–VLM 기반 주행 영상 분석·피드백 시스템
 사후 코칭은 비어 있습니다. BackMirror는 블랙박스 영상 한 편을 받아, 위험했던 순간을 찾아
 그 이유와 개선점을 한 페이지 코칭 리포트로 돌려줍니다. 경고를 넘어 코칭으로.
 
-FVE3011 자동차인공지능 Term Project — 이지원 (Detection) · 김두훈 (VLM) · 박준형 (UI/UX)
-
 
 ## 데모
 
@@ -114,3 +112,7 @@ YOLO 검출 → 객체 추적·모션 이벤트 → 이벤트 추출 → VLM 코
 - VZC Traffic-Light — https://huggingface.co/datasets/vzc-research-chapter/vzc-traffic-light-dataset
 - Ultralytics RT-DETR — https://docs.ultralytics.com/models/rtdetr
 - Y. Zhao et al., "DETRs Beat YOLOs on Real-time Object Detection," CVPR 2024.
+
+---
+
+자동차인공지능 수업 팀 프로젝트 — 이지원 (Detection) · 김두훈 (VLM) · 박준형 (UI/UX)
